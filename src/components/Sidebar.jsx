@@ -111,7 +111,7 @@ export default function Sidebar({ projects = [] }) {
           <>
             <div className="px-4 py-1 mt-3 mb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Администратор</div>
             <NavLink to="/admin/projects/new" className={linkCls}>Добавить объект</NavLink>
-            <NavLink to="/admin/users" className={linkCls}>Пользователи</NavLink>
+            <NavLink to="/settings" className={linkCls}>Настройки</NavLink>
           </>
         )}
       </nav>

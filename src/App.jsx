@@ -9,6 +9,7 @@ import ProjectFormPage from './pages/ProjectFormPage';
 import UsersPage from './pages/UsersPage';
 import PassportPage from './pages/PassportPage';
 import KanbanPage from './pages/KanbanPage';
+import SettingsPage from './pages/SettingsPage';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -36,6 +37,7 @@ export default function App() {
         <Route path="/projects/:id" element={<PrivateRoute><ProjectDetailPage /></PrivateRoute>} />
         <Route path="/projects/:id/passport" element={<PrivateRoute><PassportPage /></PrivateRoute>} />
         <Route path="/kanban" element={<PrivateRoute><KanbanPage /></PrivateRoute>} />
+        <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
 
         {/* Admin only */}
         <Route path="/admin/projects/new" element={<AdminRoute><ProjectFormPage /></AdminRoute>} />

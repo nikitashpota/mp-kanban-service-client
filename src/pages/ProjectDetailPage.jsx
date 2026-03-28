@@ -294,7 +294,6 @@ export default function ProjectDetailPage() {
         </div>
         {isAdmin && (
           <div className="flex gap-2 flex-wrap flex-shrink-0">
-            <button onClick={() => setPassportModal(true)} className="px-3 py-1.5 text-xs font-medium rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 transition-all">Реквизиты</button>
             <button onClick={() => nav(`/admin/projects/${id}/edit`)} className="px-3 py-1.5 text-xs font-medium rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 transition-all">Редактировать</button>
             <button onClick={handleDeleteProject} className="px-3 py-1.5 text-xs font-medium rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 transition-all">Удалить</button>
           </div>
@@ -637,23 +636,6 @@ export default function ProjectDetailPage() {
       )}
 
       {/* ── Modals ── */}
-      {passportModal && (
-        <Modal title="Реквизиты паспорта" onClose={() => setPassportModal(false)} onSave={handleSavePassport} wide>
-          <div className="grid grid-cols-2 gap-4">
-            {[
-              ['customer', 'Заказчик'], ['functional_customer', 'Функциональный заказчик'],
-              ['general_designer', 'Генеральный проектировщик'], ['developer', 'Застройщик'],
-              ['area_total', 'Общая площадь объекта'], ['aip_cost', 'Стоимость по АИП'],
-              ['completion_date', 'Срок ввода'], ['contract_pir', 'Договор на ПИР'],
-            ].map(([f, l]) => (
-              <Field key={f} label={l}>
-                <input className={inputCls} value={passportForm[f] || ''} onChange={e => setPassportForm(p => ({ ...p, [f]: e.target.value }))} />
-              </Field>
-            ))}
-          </div>
-        </Modal>
-      )}
-
       {contactModal && (
         <Modal title={contactModal.mode === 'add' ? 'Добавить в авторский коллектив' : 'Редактировать'} onClose={() => setContactModal(null)} onSave={saveContact}>
           <Field label="Юр. лицо"><input className={inputCls} value={contactForm.legal_entity} onChange={e => setContactForm(p => ({ ...p, legal_entity: e.target.value }))} /></Field>
