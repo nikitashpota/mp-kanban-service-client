@@ -8,7 +8,7 @@ const EMPTY = {
   gip_name:'', gip_phone:'', is_terminated: false, project_type_id:'',
   // Реквизиты паспорта
   customer:'', functional_customer:'', general_designer:'', developer:'',
-  aip_cost:'', passport_completion_date:'', contract_pir:'', passport_area_total:'',
+  aip_cost:'', passport_completion_date:'', contract_pir:'',
 };
 
 const inputCls = 'w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-[#C0392B] focus:ring-2 focus:ring-red-100 transition bg-white';
@@ -40,7 +40,11 @@ export default function ProjectFormPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    getProjectTypes().then(setTypes).catch(() => {});
+    getProjectTypes().then(t => {
+      setTypes(t);
+      // Auto-select first type for new projects
+      if (!isEdit && t.length > 0) setForm(p => ({ ...p, project_type_id: String(t[0].id) }));
+    }).catch(() => {});
     if (!isEdit) return;
     getProject(id).then(d => {
       const p = d.project;
@@ -57,7 +61,7 @@ export default function ProjectFormPage() {
         customer: pp.customer||'', functional_customer: pp.functional_customer||'',
         general_designer: pp.general_designer||'', developer: pp.developer||'',
         aip_cost: pp.aip_cost||'', passport_completion_date: pp.completion_date||'',
-        contract_pir: pp.contract_pir||'', passport_area_total: pp.area_total||'',
+        contract_pir: pp.contract_pir||'', passport_completion_date: pp.completion_date||'',
       });
     }).finally(() => setLoading(false));
   }, [id, isEdit]);
@@ -72,12 +76,17 @@ export default function ProjectFormPage() {
       let projectId = id;
       if (isEdit) {
         await updateProject(id, form);
+        // Only update type if it's explicitly set in the form
+        if (form.project_type_id) {
+          await assignProjectType(projectId, form.project_type_id);
+        }
       } else {
         const c = await createProject(form);
         projectId = c.id;
+        if (form.project_type_id) {
+          await assignProjectType(projectId, form.project_type_id);
+        }
       }
-      // Assign type
-      await assignProjectType(projectId, form.project_type_id || null);
       // Save passport header
       await savePassportHeader(projectId, {
         customer: form.customer,
@@ -87,8 +96,9 @@ export default function ProjectFormPage() {
         aip_cost: form.aip_cost,
         completion_date: form.passport_completion_date,
         contract_pir: form.contract_pir,
-        area_total: form.passport_area_total,
+        area_total: form.area_total,
       });
+      localStorage.setItem('projects_updated', Date.now());
       nav(`/projects/${projectId}`);
     } catch (err) { setError(err.response?.data?.error || 'Ошибка'); }
     finally { setSaving(false); }
@@ -150,7 +160,6 @@ export default function ProjectFormPage() {
               </label>
             </div>
           </div>
-          <div><Label>Общая площадь объекта</Label><Input value={form.passport_area_total} onChange={set('passport_area_total')} /></div>
         </div>
       </Card>
 

@@ -83,6 +83,8 @@ export const savePassportIssues = (projectId, issues) =>
   api.put(`/passport/${projectId}/issues`, { issues }).then(r => r.data);
 export const initPassport = (projectId) =>
   api.post(`/passport/${projectId}/init`).then(r => r.data);
+export const initPassportV2 = (projectId) =>
+  api.post(`/passport/${projectId}/init-v2`).then(r => r.data);
 
 // ── Analytics ─────────────────────────────────────────────────
 export const getAnalytics = (typeId) =>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getProjects } from '../api/client';
 import Sidebar from './Sidebar';
@@ -6,6 +6,7 @@ import Sidebar from './Sidebar';
 export default function Layout({ children }) {
   const { user, isAdmin } = useAuth();
   const [projects, setProjects] = useState([]);
+  const lastUpdate = useRef(null);
   const [collapsed, setCollapsed] = useState(() => {
     try { return JSON.parse(localStorage.getItem('sidebar_collapsed') || 'false'); } catch { return false; }
   });
@@ -14,7 +15,14 @@ export default function Layout({ children }) {
 
   useEffect(() => {
     const id = setInterval(() => {
-      try { setCollapsed(JSON.parse(localStorage.getItem('sidebar_collapsed') || 'false')); } catch {}
+      try {
+        setCollapsed(JSON.parse(localStorage.getItem('sidebar_collapsed') || 'false'));
+        const updated = localStorage.getItem('projects_updated');
+        if (updated !== lastUpdate.current) {
+          lastUpdate.current = updated;
+          getProjects().then(setProjects).catch(() => {});
+        }
+      } catch {}
     }, 150);
     return () => clearInterval(id);
   }, []);

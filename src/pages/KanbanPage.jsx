@@ -8,43 +8,174 @@ import { useAuth } from '../context/AuthContext';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { SortSelect, sortProjects } from '../components/SortSelect';
 
+// PDF export — open new window with real styles copied from current page
+const exportToPDF = (tableEl, typeName) => {
+  const printWindow = window.open('', '_blank', 'width=1400,height=900');
+  const dateStr = new Date().toLocaleDateString('ru-RU');
+
+  // Copy all <link> and <style> tags from current document
+  const styleLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+    .map(el => el.outerHTML).join('\n');
+
+  printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Сводный канбан — ${typeName}</title>
+  ${styleLinks}
+  <style>
+    @page { size: A4 landscape; margin: 8mm; }
+    body { background: white !important; padding: 0 !important; margin: 0 !important; font-family: 'Inter', Arial, sans-serif; }
+    .print-header {
+      display: flex !important;
+      justify-content: space-between;
+      align-items: center;
+      background: #C0392B !important;
+      color: white !important;
+      padding: 6px 12px;
+      margin-bottom: 6px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .print-header-title { font-size: 13px; font-weight: 700; }
+    .print-header-meta { font-size: 10px; opacity: 0.9; }
+    .print-legend {
+      display: flex !important;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 6px;
+      font-size: 9px;
+      flex-wrap: wrap;
+    }
+    .print-legend-item { display: flex; align-items: center; gap: 4px; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+    /* Fix overflow */
+    .overflow-auto, .overflow-x-auto, .overflow-hidden { overflow: visible !important; }
+
+    /* CRITICAL: fix dual cell height hacks */
+    td[style*="height:1px"], td[style*='height:"1px"'] {
+      height: auto !important;
+      padding: 0 !important;
+    }
+
+    /* Make dual cell wrappers show as table */
+    td > div[style*="height:100%"] {
+      display: table !important;
+      width: 100% !important;
+      height: auto !important;
+      border-collapse: collapse;
+    }
+
+    /* Each half-row becomes a table-row */
+    td > div[style*="height:100%"] > div {
+      display: table-row !important;
+      height: auto !important;
+    }
+
+    /* Content inside each half becomes a table-cell */
+    td > div[style*="height:100%"] > div > * {
+      display: table-cell !important;
+      vertical-align: middle !important;
+      text-align: center !important;
+      padding: 3px 2px !important;
+      border-top: 1px solid #e5e7eb;
+    }
+    td > div[style*="height:100%"] > div:first-child > * {
+      border-top: none !important;
+    }
+
+    /* Remove flex from inner containers */
+    .flex-col { display: block !important; }
+    .flex { display: block !important; }
+    .flex-1, .min-h-0 { flex: none !important; height: auto !important; }
+
+    /* Table base */
+    table { font-size: 9px !important; width: 100% !important; border-collapse: collapse !important; }
+    th, td { font-size: 9px !important; padding: 2px 3px !important; border: 1px solid #d1d5db !important; vertical-align: middle !important; text-align: center !important; }
+    th { background: #f9fafb !important; font-weight: 600 !important; }
+
+    /* Status backgrounds */
+    .bg-green-50 { background-color: #f0fdf4 !important; }
+    .bg-red-50   { background-color: #fef2f2 !important; }
+    .bg-yellow-50{ background-color: #fefce8 !important; }
+    .bg-blue-50  { background-color: #eff6ff !important; }
+    .bg-orange-50{ background-color: #fff7ed !important; }
+
+    /* SVG icons - keep size */
+    svg { display: inline-block !important; }
+    tr { page-break-inside: avoid; }
+    thead { display: table-header-group; }
+  </style>
+</head>
+<body>
+  <div class="print-header">
+    <span class="print-header-title">Сводный канбан — ${typeName}</span>
+    <span class="print-header-meta">${dateStr}</span>
+  </div>
+  <div class="print-legend" id="legend"></div>
+  <div style="overflow:visible">
+    ${tableEl.outerHTML}
+  </div>
+  <script>
+    // Build legend from SVGs in the page
+    const statusColors = {
+      done: {color:'#16a34a', label:'Исполнено'},
+      not_provided: {color:'#dc2626', label:'Не обеспечено'},
+      needs_correction: {color:'#d97706', label:'Требует корректировки'},
+      in_progress: {color:'#2563eb', label:'В работе'},
+      not_required: {color:'#6b7280', label:'Не требуется'},
+      developed: {color:'#0891b2', label:'Разработано'},
+    };
+    const legend = document.getElementById('legend');
+    Object.values(statusColors).forEach(({color, label}) => {
+      const item = document.createElement('span');
+      item.className = 'print-legend-item';
+      item.innerHTML = '<svg width="14" height="14" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="' + color + '"/></svg> ' + label;
+      legend.appendChild(item);
+    });
+    // Print after styles load
+    window.onload = function() { setTimeout(function(){ window.print(); }, 600); };
+  </script>
+</body>
+</html>`);
+  printWindow.document.close();
+};
+
 // ── Kanban column definitions ────────────────────────────────
 // ── ADMINISTRATIVE kanban columns ────────────────────────────
 const KANBAN_COLS_ADMIN = [
-  // Исходные данные
-  { key: 'thz',    label: 'ТхЗ',                   group: 'Исходные данные',      stageNum: '1'   },
+  { key: 'thz',    label: 'ТхЗ',                   group: 'Исходные данные',      stageNum: '4'   },
   { key: 'bzu',    label: 'Границы ЗУ',             group: 'Исходные данные',      stageNum: 'bzu' },
   { key: 'dazu',   label: 'ДАЗУ',                  group: 'Исходные данные',      stageNum: '3'   },
   { key: 'gpzu',   label: 'ГПЗУ',                  group: 'Исходные данные',      stageNum: '2', groupEnd: true },
-  // Инженерные изыскания
-  { key: 'geod',   label: 'Геодезия',               group: 'Инженерные изыскания', stageNum: '5',  dual: true },
-  { key: 'geol',   label: 'Геология',               group: 'Инженерные изыскания', stageNum: '6',  dual: true },
-  { key: 'ecol',   label: 'Экология',               group: 'Инженерные изыскания', stageNum: '7',  dual: true, groupEnd: true },
-  // Стадия Проект
+  { key: 'geod',   label: 'Геодезия',               group: 'Инженерные изыскания', stageNum: '5',  dual: true, date1Field: 'deadline_directive', date2Field: 'execution_actual' },
+  { key: 'geol',   label: 'Геология',               group: 'Инженерные изыскания', stageNum: '6',  dual: true, date1Field: 'deadline_directive', date2Field: 'execution_actual' },
+  { key: 'ecol',   label: 'Экология',               group: 'Инженерные изыскания', stageNum: '7',  dual: true, date1Field: 'deadline_directive', date2Field: 'execution_actual', groupEnd: true },
   { key: 'trans',  label: 'Трансп. доступность',    group: 'Стадия Проект',        stageNum: 'trans' },
   { key: 'apr',    label: 'АПР',                    group: 'Стадия Проект',        stageNum: '10', dualSimple: true },
   { key: 'shopr',  label: 'ШОПР',                   group: 'Стадия Проект',        stageNum: 'shopr' },
   { key: 'afk',    label: 'АФК / пред.АГР',         group: 'Стадия Проект',        stageNum: '15', dualSimple: true },
   { key: 'agr',    label: 'АГР',                    group: 'Стадия Проект',        stageNum: '18' },
-  { key: 'mge_in', label: 'Загрузка МГЭ',           group: 'Стадия Проект',        stageNum: '22' },
-  { key: 'mge_out',label: 'МГЭ заключение',          group: 'Стадия Проект',        stageNum: '23' },
+  { key: 'mge_in', label: 'Загрузка МГЭ',        group: 'Стадия Проект',        stageNum: '22' },
+  { key: 'mge_out',label: 'МГЭ заключение', labelLines: ['МГЭ', 'заключение'], group: 'Стадия Проект', stageNum: '23' },
 ];
 
 // ── RESIDENTIAL (Жильё) kanban columns ───────────────────────
 const KANBAN_COLS_RESIDENTIAL = [
-  { key: 'kvart',  label: 'Квартиро-графия',        group: 'Исходные данные',      stageNum: 'kvart' },
-  { key: 'snos',   label: 'Снос',                   group: 'Исходные данные',      stageNum: 'snos', groupEnd: true },
-  { key: 'geod',   label: 'Геодезия',               group: 'Инженерные изыскания', stageNum: '5',  dual: true },
-  { key: 'geol',   label: 'Геология',               group: 'Инженерные изыскания', stageNum: '6',  dual: true },
-  { key: 'ecol',   label: 'Экология',               group: 'Инженерные изыскания', stageNum: '7',  dual: true, groupEnd: true },
-  { key: 'apr',    label: 'АПР',                    group: 'Стадия Проект',        stageNum: '10', dualSimple: true },
-  { key: 'nagruz', label: 'Выдача нагрузок РСО',    group: 'Стадия Проект',        stageNum: '13' },
-  { key: 'rso',    label: 'Договора с РСО (ТУ)',    group: 'Стадия Проект',        stageNum: '14' },
-  { key: 'afk',    label: 'АФК / пред.АГР',         group: 'Стадия Проект',        stageNum: '15', dualSimple: true },
-  { key: 'agr',    label: 'АГР',                    group: 'Стадия Проект',        stageNum: '18' },
-  { key: 'mge_in', label: 'Загрузка МГЭ',           group: 'Стадия Проект',        stageNum: '22' },
-  { key: 'mge_out',label: 'МГЭ заключение',          group: 'Стадия Проект',        stageNum: '23' },
-  { key: 'rd_zero',label: 'Выдача РД нул. цикла',   group: 'Стадия Проект',        stageNum: 'rd_zero' },
+  { key: 'kvart',  label: 'Кварт.графия',        group: 'Исходные данные',      stageNum: 'kvart' },
+  { key: 'snos',   label: 'Снос',                group: 'Исходные данные',      stageNum: 'snos', groupEnd: true },
+  { key: 'geod',   label: 'Геодезия',            group: 'Инженерные изыскания', stageNum: '5',  dual: true, date1Field: 'deadline_directive', date2Field: 'execution_actual' },
+  { key: 'geol',   label: 'Геология',            group: 'Инженерные изыскания', stageNum: '6',  dual: true, date1Field: 'deadline_directive', date2Field: 'execution_actual' },
+  { key: 'ecol',   label: 'Экология',            group: 'Инженерные изыскания', stageNum: '7',  dual: true, date1Field: 'deadline_directive', date2Field: 'execution_actual', groupEnd: true },
+  { key: 'apr',    label: 'АПР',                 group: 'Стадия Проект',        stageNum: '10', dualSimple: true },
+  { key: 'nagruz', label: 'Выдача нагрузок РСО', labelLines: ['Выдача', 'нагрузок РСО'], group: 'Стадия Проект', stageNum: '13' },
+  { key: 'rso',    label: 'Договора с РСО (ТУ)', labelLines: ['Договора', 'с РСО (ТУ)'],  group: 'Стадия Проект', stageNum: '14' },
+  { key: 'afk',    label: 'АФК / пред.АГР',      group: 'Стадия Проект',        stageNum: '15', dualSimple: true },
+  { key: 'agr',    label: 'АГР',                 group: 'Стадия Проект',        stageNum: '18' },
+  { key: 'mge_in', label: 'Загрузка МГЭ',        group: 'Стадия Проект',        stageNum: '22' },
+  { key: 'mge_out',label: 'МГЭ заключение', labelLines: ['МГЭ', 'заключение'], group: 'Стадия Проект', stageNum: '23' },
+  { key: 'rd_zero',label: 'Выдача РД нул. цикла', group: 'Стадия Проект',       stageNum: 'rd_zero' },
 ];
 // dual = 1й/2й этап с метками | dualSimple = два ряда без меток
 
@@ -118,7 +249,7 @@ function fmtDate(d) {
 }
 
 // ── Shared dual cell logic hook ───────────────────────────────
-function useDualCell(stage, onUpdate) {
+function useDualCell(stage, onUpdate, projectId, stageNum, date1Field = 'execution_actual', date2Field = 'execution_actual_2') {
   const [open1, setOpen1] = useState(false);
   const [open2, setOpen2] = useState(false);
   const [dateEdit, setDateEdit] = useState(null);
@@ -135,21 +266,21 @@ function useDualCell(stage, onUpdate) {
   const safeStage = stage || {};
 
   const pickStatus = async (which, key) => {
-    if (!stage) return;
+    if (!stage && !projectId) return;
     which === 1 ? setOpen1(false) : setOpen2(false);
-    await onUpdate(stage.id, which === 1 ? { kanban_status: key } : { kanban_status_2: key });
+    await onUpdate(stage?.id, which === 1 ? { kanban_status: key } : { kanban_status_2: key }, projectId, stageNum);
   };
   const saveDate = async () => {
-    if (!stage) return;
-    const field = dateEdit === 1 ? { execution_planned: dateVal } : { execution_planned_2: dateVal };
+    if (!stage && !projectId) return;
+    const field = dateEdit === 1 ? { execution_actual: dateVal } : { execution_actual_2: dateVal };
     setDateEdit(null);
-    await onUpdate(stage.id, field);
+    await onUpdate(stage?.id, field, projectId, stageNum);
   };
 
   const st1 = STATUS_MAP[safeStage.kanban_status];
   const st2 = STATUS_MAP[safeStage.kanban_status_2];
-  const date1 = safeStage.execution_actual || safeStage.execution_planned || safeStage.deadline_contract;
-  const date2 = safeStage.execution_actual_2 || safeStage.execution_planned_2;
+  const date1 = safeStage[date1Field];
+  const date2 = date2Field === 'execution_actual_2' ? safeStage.execution_actual_2 : safeStage[date2Field];
 
   const Picker = ({ which, currentKey }) => (
     <div className="absolute top-0 left-full z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-52 ml-1">
@@ -179,14 +310,13 @@ function useDualCell(stage, onUpdate) {
     </div>
   );
 
-  return { ref, open1, setOpen1, open2, setOpen2, dateEdit, setDateEdit, dateVal, setDateVal, st1, st2, date1, date2, pickStatus, saveDate, Picker, DateOverlay };
+  return { ref, open1, setOpen1, open2, setOpen2, dateEdit, setDateEdit, dateVal, setDateVal, st1, st2, date1, date2, pickStatus, saveDate, Picker, DateOverlay, safeStage };
 }
 
 // ── DualStatusCell — с метками 1эт/2эт (изыскания) ───────────
-function DualStatusCell({ stage, isAdmin, onUpdate, groupBorderStyle = {} }) {
-  const { ref, open1, setOpen1, open2, setOpen2, dateEdit, setDateEdit, dateVal, st1, st2, date1, date2, Picker, DateOverlay } = useDualCell(stage, onUpdate);
+function DualStatusCell({ stage, projectId, stageNum, isAdmin, onUpdate, groupBorderStyle = {}, date1Field, date2Field }) {
+  const { ref, open1, setOpen1, open2, setOpen2, dateEdit, setDateEdit, dateVal, st1, st2, date1, date2, Picker, DateOverlay, safeStage } = useDualCell(stage, onUpdate, projectId, stageNum, date1Field, date2Field);
 
-  if (!stage) return <td className="border border-gray-100 p-0" style={groupBorderStyle}><div className="text-gray-200 text-xs text-center py-2">—</div></td>;
 
   const SubRow = ({ which, st, date, open, setOpen }) => (
     <div className={`w-full flex-1 flex flex-col items-center justify-center border-b border-gray-100 last:border-0 ${st ? st.bg : ''} ${isAdmin ? 'cursor-pointer hover:brightness-95' : ''}`}
@@ -194,9 +324,10 @@ function DualStatusCell({ stage, isAdmin, onUpdate, groupBorderStyle = {} }) {
       onClick={() => isAdmin && setOpen(o => !o)}>
       <span className="text-[9px] text-gray-400 font-bold leading-none">{which}эт</span>
       {st ? <StatusIcon type={st.key} size={16} /> : <span className="text-gray-200 text-base">·</span>}
-      <span className={`text-[9px] font-semibold leading-none ${st ? st.text : 'text-gray-300'}`}
+      <span
+        className={`text-[9px] font-semibold leading-none transition-colors ${date ? (st ? st.text : 'text-gray-400') : 'text-gray-300'} ${isAdmin ? 'hover:text-blue-500 hover:underline cursor-pointer' : ''}`}
         onClick={e => { if (isAdmin) { e.stopPropagation(); setDateEdit(which); setDateVal((date || '').slice(0, 10)); }}}>
-        {date ? fmtDate(date) : (isAdmin ? 'дата' : '')}
+        {date ? fmtDate(date) : (isAdmin ? 'дата' : '—')}
       </span>
     </div>
   );
@@ -210,14 +341,14 @@ function DualStatusCell({ stage, isAdmin, onUpdate, groupBorderStyle = {} }) {
       {open1 && <Picker which={1} currentKey={stage.kanban_status} />}
       {open2 && <div className="absolute bottom-0 left-full z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-52 ml-1">
         {STATUSES.map(s => (
-          <button key={s.key} onClick={async () => { setOpen2(false); await onUpdate(stage.id, { kanban_status_2: s.key }); }}
-            className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 ${stage.kanban_status_2 === s.key ? 'font-semibold' : ''}`}>
+          <button key={s.key} onClick={async () => { setOpen2(false); await onUpdate(stage?.id, { kanban_status_2: s.key }, projectId, stageNum); }}
+            className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 ${safeStage.kanban_status_2 === s.key ? 'font-semibold' : ''}`}>
             <StatusIcon type={s.key} size={14} /><span className={s.text}>{s.label}</span>
-            {stage.kanban_status_2 === s.key && <span className="ml-auto text-gray-300">✓</span>}
+            {safeStage.kanban_status_2 === s.key && <span className="ml-auto text-gray-300">✓</span>}
           </button>
         ))}
         <div className="border-t border-gray-100 mt-1 pt-1">
-          <button onClick={async () => { setOpen2(false); await onUpdate(stage.id, { kanban_status_2: null }); }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50">✕ Очистить</button>
+          <button onClick={async () => { setOpen2(false); await onUpdate(stage?.id, { kanban_status_2: null }, projectId, stageNum); }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50">✕ Очистить</button>
         </div>
       </div>}
       {dateEdit && <DateOverlay />}
@@ -226,19 +357,19 @@ function DualStatusCell({ stage, isAdmin, onUpdate, groupBorderStyle = {} }) {
 }
 
 // ── DualSimpleCell — без меток (АПР, АФК) — просто 2 строки ──
-function DualSimpleCell({ stage, isAdmin, onUpdate, groupBorderStyle = {} }) {
-  const { ref, open1, setOpen1, open2, setOpen2, dateEdit, setDateEdit, st1, st2, date1, date2, Picker, DateOverlay } = useDualCell(stage, onUpdate);
+function DualSimpleCell({ stage, projectId, stageNum, isAdmin, onUpdate, groupBorderStyle = {}, date1Field, date2Field }) {
+  const { ref, open1, setOpen1, open2, setOpen2, dateEdit, setDateEdit, dateVal, setDateVal, st1, st2, date1, date2, Picker, DateOverlay, safeStage } = useDualCell(stage, onUpdate, projectId, stageNum, date1Field, date2Field);
 
-  if (!stage) return <td className="border border-gray-100 p-0" style={groupBorderStyle}><div className="text-gray-200 text-xs text-center py-2">—</div></td>;
 
   const SimpleRow = ({ which, st, date, open, setOpen }) => (
     <div className={`w-full flex-1 flex flex-col items-center justify-center border-b border-gray-100 last:border-0 ${st ? st.bg : ''} ${isAdmin ? 'cursor-pointer hover:brightness-95' : ''}`}
       style={{ gap: '0.5rem', paddingTop: '6px', paddingBottom: '6px' }}
       onClick={() => isAdmin && setOpen(o => !o)}>
       {st ? <StatusIcon type={st.key} size={17} /> : <span className="text-gray-200 text-base">·</span>}
-      <span className={`text-[9px] font-semibold leading-none ${st ? st.text : 'text-gray-300'}`}
+      <span
+        className={`text-[9px] font-semibold leading-none transition-colors ${date ? (st ? st.text : 'text-gray-400') : 'text-gray-300'} ${isAdmin ? 'hover:text-blue-500 hover:underline cursor-pointer' : ''}`}
         onClick={e => { if (isAdmin) { e.stopPropagation(); setDateEdit(which); setDateVal((date || '').slice(0, 10)); }}}>
-        {date ? fmtDate(date) : (isAdmin ? 'дата' : '')}
+        {date ? fmtDate(date) : (isAdmin ? 'дата' : '—')}
       </span>
     </div>
   );
@@ -249,17 +380,17 @@ function DualSimpleCell({ stage, isAdmin, onUpdate, groupBorderStyle = {} }) {
         <SimpleRow which={1} st={st1} date={date1} open={open1} setOpen={setOpen1} />
         <SimpleRow which={2} st={st2} date={date2} open={open2} setOpen={setOpen2} />
       </div>
-      {open1 && <Picker which={1} currentKey={stage?.kanban_status} />}
+      {open1 && <Picker which={1} currentKey={safeStage.kanban_status} />}
       {open2 && <div className="absolute bottom-0 left-full z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-52 ml-1">
         {STATUSES.map(s => (
-          <button key={s.key} onClick={async () => { setOpen2(false); await onUpdate(stage.id, { kanban_status_2: s.key }); }}
-            className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 ${stage.kanban_status_2 === s.key ? 'font-semibold' : ''}`}>
+          <button key={s.key} onClick={async () => { setOpen2(false); await onUpdate(stage?.id, { kanban_status_2: s.key }, projectId, stageNum); }}
+            className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 ${safeStage.kanban_status_2 === s.key ? 'font-semibold' : ''}`}>
             <StatusIcon type={s.key} size={14} /><span className={s.text}>{s.label}</span>
-            {stage.kanban_status_2 === s.key && <span className="ml-auto text-gray-300">✓</span>}
+            {safeStage.kanban_status_2 === s.key && <span className="ml-auto text-gray-300">✓</span>}
           </button>
         ))}
         <div className="border-t border-gray-100 mt-1 pt-1">
-          <button onClick={async () => { setOpen2(false); await onUpdate(stage.id, { kanban_status_2: null }); }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50">✕ Очистить</button>
+          <button onClick={async () => { setOpen2(false); await onUpdate(stage?.id, { kanban_status_2: null }, projectId, stageNum); }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50">✕ Очистить</button>
         </div>
       </div>}
       {dateEdit && <DateOverlay />}
@@ -269,7 +400,7 @@ function DualSimpleCell({ stage, isAdmin, onUpdate, groupBorderStyle = {} }) {
 
 
 // ── Status cell with click-to-change ─────────────────────────
-function StatusCell({ stage, projectId, isAdmin, onUpdate, groupBorderStyle = {} }) {
+function StatusCell({ stage, projectId, stageNum, isAdmin, onUpdate, groupBorderStyle = {} }) {
   const [open, setOpen] = useState(false);
   const [dateEdit, setDateEdit] = useState(false);
   const [dateVal, setDateVal] = useState('');
@@ -281,80 +412,67 @@ function StatusCell({ stage, projectId, isAdmin, onUpdate, groupBorderStyle = {}
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  if (!stage) {
-    return (
-      <td className="border border-gray-100 text-center" style={groupBorderStyle}>
-        {isAdmin ? (
-          <div className="text-gray-200 text-xs py-2 cursor-not-allowed">—</div>
-        ) : <div className="text-gray-200 text-xs">—</div>}
-      </td>
-    );
+  if (!stage && !isAdmin) {
+    return <td className="border border-gray-100 text-center" style={groupBorderStyle}>
+      <div className="text-gray-200 text-xs">—</div>
+    </td>;
   }
 
-  const st = STATUS_MAP[stage.kanban_status];
-  const date = stage.execution_actual || stage.execution_planned || stage.deadline_contract;
+  const st = STATUS_MAP[stage?.kanban_status];
+  const date = stage?.execution_actual;
 
   const handleStatusPick = async (statusKey) => {
     setOpen(false);
-    await onUpdate(stage.id, { kanban_status: statusKey });
+    await onUpdate(stage?.id, { kanban_status: statusKey }, projectId, stageNum);
   };
 
   const handleDateSave = async () => {
     setDateEdit(false);
-    await onUpdate(stage.id, { execution_planned: dateVal });
+    await onUpdate(stage?.id, { execution_actual: dateVal }, projectId, stageNum);
   };
 
   return (
     <td className={`border border-gray-100 p-0 relative ${st ? st.bg : 'bg-white'}`} style={groupBorderStyle}>
       <div ref={ref} className="relative">
-        {/* Status icon */}
         <div
           onClick={() => isAdmin && setOpen(o => !o)}
           className={`flex flex-col items-center justify-center py-2 px-1 ${isAdmin ? 'cursor-pointer hover:brightness-95' : ''}`}
           style={{ gap: '0.75rem' }}
         >
-          {st ? <StatusIcon type={stage.kanban_status} size={20} /> : <span className="text-gray-200 text-lg">·</span>}
-          {date && (
+          {st ? <StatusIcon type={stage?.kanban_status} size={20} /> : <span className="text-gray-200 text-lg">·</span>}
+          {date ? (
             <span
-              className={`text-[10px] font-semibold leading-none ${st ? st.text : 'text-gray-400'}`}
-              onClick={e => { if (isAdmin) { e.stopPropagation(); setDateEdit(true); setDateVal(date.slice(0, 10)); }}}
-            >
-              {fmtDate(date)}
-            </span>
-          )}
-          {!date && isAdmin && (
-            <span className="text-[10px] text-gray-300 leading-none"
-              onClick={e => { e.stopPropagation(); setDateEdit(true); setDateVal(''); }}>
-              дата
-            </span>
-          )}
+              className={`text-[10px] font-semibold leading-none transition-colors ${st ? st.text : 'text-gray-400'} ${isAdmin ? 'hover:text-blue-500 hover:underline cursor-pointer' : ''}`}
+              onClick={e => { if (isAdmin) { e.stopPropagation(); setDateEdit(true); setDateVal(date.slice(0,10)); }}}
+            >{fmtDate(date)}</span>
+          ) : isAdmin ? (
+            <span className="text-[10px] text-gray-300 leading-none hover:text-blue-500 hover:underline cursor-pointer transition-colors"
+              onClick={e => { e.stopPropagation(); setDateEdit(true); setDateVal(''); }}>дата</span>
+          ) : null}
         </div>
 
-        {/* Status picker dropdown */}
         {open && (
           <div className="absolute top-full left-0 z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-52" style={{ minWidth: 200 }}>
             {STATUSES.map(s => (
               <button key={s.key} onClick={() => handleStatusPick(s.key)}
-                className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${stage.kanban_status === s.key ? 'font-semibold' : ''}`}>
+                className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${stage?.kanban_status === s.key ? 'font-semibold' : ''}`}>
                 <StatusIcon type={s.key} size={16} />
                 <span className={s.text}>{s.label}</span>
-                {stage.kanban_status === s.key && <span className="ml-auto text-gray-300">✓</span>}
+                {stage?.kanban_status === s.key && <span className="ml-auto text-gray-300">✓</span>}
               </button>
             ))}
             <div className="border-t border-gray-100 mt-1 pt-1">
-              <button onClick={() => handleStatusPick(null)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-400 hover:bg-gray-50">
+              <button onClick={() => handleStatusPick(null)} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-400 hover:bg-gray-50">
                 <span>✕</span> Очистить
               </button>
             </div>
           </div>
         )}
 
-        {/* Date input overlay */}
         {dateEdit && (
-          <div className="absolute top-0 left-0 z-30 bg-white border border-brand-400 rounded-lg shadow-lg p-2 w-40">
+          <div className="absolute top-full left-0 z-30 bg-white border border-[#C0392B] rounded-lg shadow-lg p-2 w-36">
             <input type="date" autoFocus
-              className="w-full text-xs border border-gray-200 rounded px-2 py-1 mb-2 focus:outline-none focus:border-brand-400"
+              className="w-full text-xs border border-gray-200 rounded px-2 py-1 mb-2 focus:outline-none"
               value={dateVal} onChange={e => setDateVal(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleDateSave(); if (e.key === 'Escape') setDateEdit(false); }}
             />
@@ -426,6 +544,8 @@ export default function KanbanPage() {
   const [rows, setRows] = useState([]);
   const [types, setTypes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [pdfExporting, setPdfExporting] = useState(false);
+  const tableRef = useRef();
   const [filterType, setFilterType] = usePersistentState('kanban_filterType', '');
   const [search, setSearch] = usePersistentState('kanban_search', '');
   const [showProblematic, setShowProblematic] = usePersistentState('kanban_problematic', false);
@@ -451,8 +571,9 @@ export default function KanbanPage() {
 
   useEffect(() => { load(); }, []);
 
-  const handleUpdate = async (stageId, data) => {
-    await patchKanbanStage(stageId, data);
+  const handleUpdate = async (stageId, data, projectId, stageNum) => {
+    const id = stageId || 'new';
+    await patchKanbanStage(id, { ...data, ...(id === 'new' ? { project_id: projectId, stage_num: stageNum } : {}) });
     load();
   };
 
@@ -508,10 +629,25 @@ export default function KanbanPage() {
   const thFixedCls = 'border border-gray-100 bg-gray-50 text-[11px] font-semibold text-gray-500 text-center px-1 py-2 whitespace-nowrap align-middle';
 
   return (
-    <div className="flex flex-col h-full" style={{ height: 'calc(100vh - 56px - 48px)' }}>
+    <div className="print-kanban-root flex flex-col h-full" style={{ height: 'calc(100vh - 56px - 48px)' }}>
+
+      {/* ── PRINT ONLY: header + legend ── */}
+      <div className="print-header" style={{ display: 'none' }}>
+        <span className="print-header-title">Сводный канбан — {activeType?.name || 'Все'}</span>
+        <span className="print-header-meta">{new Date().toLocaleDateString('ru-RU')}</span>
+      </div>
+      <div className="print-legend" style={{ display: 'none' }}>
+        {STATUSES.map(s => (
+          <span key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <StatusIcon type={s.key} size={12} />
+            <span className={s.text}>{s.label}</span>
+          </span>
+        ))}
+      </div>
+
       {/* ── TYPE TABS — обособлены сверху ── */}
       {types.length > 0 && !dashFilter && (
-        <div className="mb-5">
+        <div className="mb-5 print-hide">
           <div className="flex items-center gap-2 flex-wrap">
             {types.map(t => (
               <button key={t.id} onClick={() => setFilterType(String(t.id))}
@@ -526,7 +662,7 @@ export default function KanbanPage() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
+      <div className="print-hide flex items-center justify-between mb-5 gap-3 flex-wrap">
         <div>
           <h1 className="text-lg font-bold text-gray-900">Сводный канбан</h1>
           <p className="text-sm text-gray-400 mt-0.5">{visible.length} объект(ов)</p>
@@ -601,6 +737,11 @@ export default function KanbanPage() {
           )}
 
           {/* Switch to cards */}
+          <button onClick={() => { if (tableRef.current) exportToPDF(tableRef.current, activeType?.name || 'Все объекты'); }}
+            className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 transition-all">
+            ⬇ PDF
+          </button>
+
           <button onClick={() => nav('/projects')}
             className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 transition-all">
             ☰ Карточки
@@ -629,7 +770,7 @@ export default function KanbanPage() {
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col flex-1 min-h-0">
-          <div className="overflow-auto flex-1">
+          <div className="overflow-auto flex-1" ref={tableRef}>
             <table className="border-collapse w-full" style={{ tableLayout: 'fixed', minWidth: 900 }}>
               <thead className="sticky top-0 z-10">
                 {/* Group header row */}
@@ -653,7 +794,11 @@ export default function KanbanPage() {
                     <th key={col.key}
                       className={thCls}
                       style={{ maxWidth: 56, borderRight: col.groupEnd ? '2px solid #d1d5db' : undefined }}>
-                      {col.label.length > 10 ? (
+                      {col.labelLines ? (
+                        <div className="text-[10px] leading-tight text-center">
+                          {col.labelLines.map((line, i) => <div key={i}>{line}</div>)}
+                        </div>
+                      ) : col.label.length > 10 ? (
                         <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', whiteSpace: 'nowrap', margin: '0 auto', fontSize: 10, lineHeight: 1.2, maxHeight: 80, overflow: 'hidden' }}>
                           {col.label}
                         </div>
@@ -715,14 +860,14 @@ export default function KanbanPage() {
                       {/* Stage cells */}
                       {KANBAN_COLS.map(col => {
                         const groupBorderStyle = col.groupEnd ? { borderRight: '2px solid #d1d5db' } : {};
-                        if (col.noRenovation && p.type_is_renovation) {
-                          return <td key={col.key} className="border border-gray-100 p-0 bg-gray-50" style={groupBorderStyle}>
-                            <div className="text-[9px] text-gray-300 text-center py-2">н/п</div>
-                          </td>;
-                        }
-                        if (col.dual) return <DualStatusCell key={col.key} stage={p.stages[col.stageNum]} isAdmin={isAdmin} onUpdate={handleUpdate} groupBorderStyle={groupBorderStyle} />;
-                        if (col.dualSimple) return <DualSimpleCell key={col.key} stage={p.stages[col.stageNum]} isAdmin={isAdmin} onUpdate={handleUpdate} groupBorderStyle={groupBorderStyle} />;
-                        return <StatusCell key={col.key} stage={p.stages[col.stageNum]} projectId={p.id} isAdmin={isAdmin} onUpdate={handleUpdate} groupBorderStyle={groupBorderStyle} />;
+                        const stage = p.stages[col.stageNum];
+                        // For missing stages: pass projectId + stageNum so cell can auto-create
+                        const cellProps = { stage, isAdmin, onUpdate: handleUpdate, groupBorderStyle,
+                          projectId: p.id, stageNum: col.stageNum,
+                          date1Field: col.date1Field, date2Field: col.date2Field };
+                        if (col.dual) return <DualStatusCell key={col.key} {...cellProps} />;
+                        if (col.dualSimple) return <DualSimpleCell key={col.key} {...cellProps} />;
+                        return <StatusCell key={col.key} {...cellProps} />;
                       })}
 
                       {/* Примечание */}

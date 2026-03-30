@@ -4,7 +4,7 @@ import {
   getProject, uploadPhotos, deletePhoto, setPhotoType,
   addContact, updateContact, deleteContact,
   saveNetworks, savePassportHeader, patchPassportStage,
-  savePassportIssues, initPassport, deleteProject, photoUrl
+  savePassportIssues, initPassportV2, deleteProject, photoUrl
 } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 
@@ -224,11 +224,23 @@ export default function ProjectDetailPage() {
     catch { flash('Ошибка', 'error'); }
   };
   const handleInitPassport = async () => {
-    try { await initPassport(id); flash('Этапы созданы'); load(); }
+    try { await initPassportV2(id); flash('Этапы созданы'); load(); }
     catch (err) { flash(err.response?.data?.error || 'Ошибка', 'error'); }
   };
   const handlePatchStage = async (stageId, field, value) => {
-    try { await patchPassportStage(id, stageId, { [field]: value }); load(); }
+    try {
+      await patchPassportStage(id, stageId, { [field]: value });
+      // Update local state — no full reload, no scroll reset
+      setData(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          passportStages: prev.passportStages.map(s =>
+            s.id === stageId ? { ...s, [field]: value || null } : s
+          ),
+        };
+      });
+    }
     catch { flash('Ошибка', 'error'); }
   };
 
@@ -266,7 +278,11 @@ export default function ProjectDetailPage() {
 
   const handleDeleteProject = async () => {
     if (!confirm('Удалить объект?')) return;
-    try { await deleteProject(id); nav('/projects'); }
+    try {
+      await deleteProject(id);
+      localStorage.setItem('projects_updated', Date.now());
+      nav('/projects');
+    }
     catch { flash('Ошибка', 'error'); }
   };
 
@@ -445,7 +461,7 @@ export default function ProjectDetailPage() {
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 text-sm font-semibold text-gray-800">{project.name}</div>
               <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-gray-100">
-                {[['Заказчик', passport.customer], ['Застройщик', passport.developer], ['Общая площадь', passport.area_total], ['Договор на ПИР', passport.contract_pir]].map(([l, v]) => (
+                {[['Заказчик', passport.customer], ['Застройщик', passport.developer], ['Общая площадь', project.area_total ? `${project.area_total} м²` : null], ['Договор на ПИР', passport.contract_pir]].map(([l, v]) => (
                   <div key={l} className="px-4 py-3">
                     <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-0.5">{l}</div>
                     <div className="text-xs font-medium text-gray-700">{v || <span className="text-gray-300 italic">не указано</span>}</div>
@@ -483,49 +499,86 @@ export default function ProjectDetailPage() {
                       <th className={thCls} style={{ width: 36 }}>№</th>
                       <th className={`${thCls} text-left`} style={{ width: 175 }}>Этап</th>
                       <th className={`${thCls} text-left`} style={{ width: 195 }}>Детализация</th>
-                      <th className={thCls} style={{ width: 75 }}>Готов-ность</th>
-                      <th className={thCls} style={{ width: 95 }}>Срок<br/>(договор)</th>
-                      <th className={thCls} style={{ width: 95 }}>Срок<br/>(директ.)</th>
-                      <th className={thCls} style={{ width: 95 }}>Исп.<br/>плановое</th>
-                      <th className={thCls} style={{ width: 95 }}>Исп.<br/>факт.</th>
+                      <th className={thCls} style={{ width: 70 }}>Готов-ность</th>
+                      <th className={thCls} style={{ width: 110 }}>Срок<br/><span className="text-[10px] font-normal text-gray-400">договор / директ.</span></th>
+                      <th className={thCls} style={{ width: 110 }}>Исполнение<br/><span className="text-[10px] font-normal text-gray-400">план / факт</span></th>
                       <th className={thCls} style={{ width: 75 }}>Отв.</th>
                       <th className={`${thCls} text-left`}>Примечание</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {passportStages.map(s => {
-                      const rd = parseInt(s.readiness) || 0;
-                      const isSubRow = !s.stage_num && !s.stage_name;
-                      return (
-                        <tr key={s.id} className={`transition-colors ${isSubRow ? 'bg-gray-50/60 hover:bg-gray-50' : 'hover:bg-gray-50/30'}`}>
-                          <td className={`${tdCls} text-center text-gray-400 font-mono text-[11px]`}>{s.stage_num || ''}</td>
-                          <td className={`${tdCls} font-semibold text-gray-800 text-xs`}>
-                            {isAdmin ? <EC value={s.stage_name} onSave={v => handlePatchStage(s.id, 'stage_name', v)} placeholder="—" /> : (s.stage_name || '')}
-                          </td>
-                          <td className={`${tdCls} text-gray-500 text-xs`}>
-                            {isAdmin ? <EC value={s.sub_stage_name} onSave={v => handlePatchStage(s.id, 'sub_stage_name', v)} placeholder="—" /> : (s.sub_stage_name || '')}
-                          </td>
-                          <td className={`${tdCls} text-center`}>
-                            <div className="flex items-center justify-center gap-0.5">
-                              {isAdmin && <EC value={rd > 0 ? String(rd) : ''} type="number" onSave={v => handlePatchStage(s.id, 'readiness', v)} placeholder="%" />}
-                              {rd > 0 && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${readinessCls(rd)}`}>{rd}%</span>}
-                              {!isAdmin && !rd && <span className="text-gray-300 text-xs">—</span>}
-                            </div>
-                          </td>
-                          {['deadline_contract', 'deadline_directive', 'execution_planned', 'execution_actual'].map(f => (
-                            <td key={f} className={`${tdCls} text-center`}>
-                              {isAdmin ? <EC value={s[f]} type="date" onSave={v => handlePatchStage(s.id, f, v)} placeholder="—" /> : <span className="text-xs text-gray-600">{fmtDate(s[f])}</span>}
+                    {(() => {
+                      // Precompute which rows are documentation sub-rows
+                      const docNums = new Set(['26', '27']);
+                      const NON_NUMERIC_NUMS = new Set(['bzu','trans','shopr','kvart','snos','rd_zero']);
+                      let lastParentNum = null;
+                      const rowMeta = passportStages.map(s => {
+                        if (s.stage_num) lastParentNum = s.stage_num;
+                        const isCountRow = docNums.has(s.stage_num) || (!s.stage_num && docNums.has(lastParentNum));
+                        return { isCountRow };
+                      });
+
+                      return passportStages.map((s, idx) => {
+                        const { isCountRow } = rowMeta[idx];
+                        const isSubRow = !s.stage_num && !s.stage_name;
+                        const isSlot2 = s.kanban_slot === 2;
+                        const displayNum = s.stage_num && !NON_NUMERIC_NUMS.has(s.stage_num) ? s.stage_num : '';
+                        const planDate   = isSlot2 ? s.parent_planned_2 : s.execution_planned;
+                        const actualDate = isSlot2 ? s.parent_actual_2  : s.execution_actual;
+                        const rd = parseInt(s.readiness) || 0;
+
+                        return (
+                          <tr key={s.id} className={`transition-colors ${isSubRow ? 'bg-gray-50/60 hover:bg-gray-50' : 'hover:bg-gray-50/30'} ${isSlot2 ? 'bg-blue-50/20' : ''}`}>
+                            <td className={`${tdCls} text-center text-gray-400 font-mono text-[11px]`}>{displayNum}</td>
+                            <td className={`${tdCls} font-semibold text-gray-800 text-xs`}>
+                              {isAdmin ? <EC value={s.stage_name} onSave={v => handlePatchStage(s.id, 'stage_name', v)} placeholder="—" /> : (s.stage_name || '')}
                             </td>
-                          ))}
-                          <td className={tdCls}>
-                            {isAdmin ? <EC value={s.responsible} onSave={v => handlePatchStage(s.id, 'responsible', v)} placeholder="—" /> : (s.responsible || <span className="text-gray-300 text-xs">—</span>)}
-                          </td>
-                          <td className={tdCls}>
-                            {isAdmin ? <EC value={s.note} onSave={v => handlePatchStage(s.id, 'note', v)} placeholder="—" /> : (s.note || <span className="text-gray-300 text-xs">—</span>)}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                            <td className={`${tdCls} text-gray-500 text-xs`}>
+                              {isAdmin ? <EC value={s.sub_stage_name} onSave={v => handlePatchStage(s.id, 'sub_stage_name', v)} placeholder="—" /> : (s.sub_stage_name || '')}
+                            </td>
+
+                            {isCountRow ? (
+                              <td className={`${tdCls} text-center`} colSpan={3}>
+                                {isAdmin
+                                  ? <EC value={s.note} onSave={v => handlePatchStage(s.id, 'note', v)} placeholder="кол-во" />
+                                  : <span className="text-xs text-gray-700 font-semibold">{s.note || <span className="text-gray-300">—</span>}</span>}
+                              </td>
+                            ) : (
+                              <>
+                                <td className={`${tdCls} text-center`}>
+                                  <div className="flex items-center justify-center gap-0.5">
+                                    {isAdmin && !isSlot2 && <EC value={rd > 0 ? String(rd) : ''} type="number" onSave={v => handlePatchStage(s.id, 'readiness', v)} placeholder="%" />}
+                                    {rd > 0 && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${readinessCls(rd)}`}>{rd}%</span>}
+                                    {!isAdmin && !rd && <span className="text-gray-300 text-xs">—</span>}
+                                  </div>
+                                </td>
+                                <td className={`${tdCls} text-center`} style={{ minWidth: 90 }}>
+                                  <div className="flex flex-col gap-0.5">
+                                    {isAdmin && !isSlot2
+                                      ? <><EC value={s.deadline_contract} type="date" onSave={v => handlePatchStage(s.id, 'deadline_contract', v)} placeholder="дог." /><EC value={s.deadline_directive} type="date" onSave={v => handlePatchStage(s.id, 'deadline_directive', v)} placeholder="дир." /></>
+                                      : <><span className="text-xs text-gray-600">{fmtDate(s.deadline_contract) || (isSlot2 ? '' : '—')}</span><span className="text-xs text-gray-400">{fmtDate(s.deadline_directive)}</span></>}
+                                  </div>
+                                </td>
+                                <td className={`${tdCls} text-center`} style={{ minWidth: 90 }}>
+                                  <div className="flex flex-col gap-0.5">
+                                    {isAdmin
+                                      ? <><EC value={planDate} type="date" onSave={v => handlePatchStage(s.id, 'execution_planned', v)} placeholder="план" /><EC value={actualDate} type="date" onSave={v => handlePatchStage(s.id, 'execution_actual', v)} placeholder="факт" /></>
+                                      : <><span className="text-xs text-gray-500">{fmtDate(planDate) || '—'}</span>{actualDate && <span className="text-xs font-semibold text-green-700 bg-green-50 px-1 rounded">{fmtDate(actualDate)}</span>}</>}
+                                  </div>
+                                </td>
+                              </>
+                            )}
+
+                            <td className={tdCls}>
+                              {isAdmin ? <EC value={s.responsible} onSave={v => handlePatchStage(s.id, 'responsible', v)} placeholder="—" /> : (s.responsible || <span className="text-gray-300 text-xs">—</span>)}
+                            </td>
+                            <td className={tdCls}>
+                              {isAdmin ? <EC value={s.note} onSave={v => handlePatchStage(s.id, 'note', v)} placeholder="—" /> : (s.note || <span className="text-gray-300 text-xs">—</span>)}
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
                   </tbody>
                 </table>
               </div>

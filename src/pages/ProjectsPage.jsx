@@ -21,8 +21,12 @@ export default function ProjectsPage() {
       .then(([p, t]) => {
         setProjects(p);
         setTypes(t);
-        // Auto-select first type if nothing selected
-        setFilterType(prev => (!prev && t.length > 0) ? String(t[0].id) : prev);
+        // Auto-select first type, or reset if saved filterType no longer exists
+        setFilterType(prev => {
+          if (!prev && t.length > 0) return String(t[0].id);
+          if (prev && !t.find(x => String(x.id) === prev) && t.length > 0) return String(t[0].id);
+          return prev;
+        });
       })
       .finally(() => setLoading(false));
   }, []);
