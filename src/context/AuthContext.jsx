@@ -1,5 +1,5 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { getMe } from '../api/client';
+import { createContext, useContext, useState, useEffect } from 'react';
+import axios from 'axios';
 
 const AuthContext = createContext(null);
 
@@ -7,38 +7,46 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const loadUser = useCallback(async () => {
+  useEffect(() => {
     const token = localStorage.getItem('token');
-    if (!token) { setLoading(false); return; }
-    try {
-      const me = await getMe();
-      setUser(me);
-    } catch {
-      localStorage.removeItem('token');
-    } finally {
-      setLoading(false);
+    const saved  = localStorage.getItem('user');
+    if (token && saved) {
+      try {
+        setUser(JSON.parse(saved));
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      } catch {}
     }
+    setLoading(false);
   }, []);
 
-  useEffect(() => { loadUser(); }, [loadUser]);
-
-  const signIn = (token, userData) => {
+  function signIn(token, userData) {
     localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(userData));
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     setUser(userData);
-  };
+  }
 
-  const signOut = () => {
+  function logout() {
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    delete axios.defaults.headers.common['Authorization'];
     setUser(null);
-  };
+  }
 
-  const isAdmin = user?.role === 'admin';
+  const role       = user?.role || 'viewer';
+  const isAdmin    = role === 'admin';
+  const isPM       = role === 'pm'  || isAdmin;
+  const isGIP      = role === 'gip' || isPM;
+  const canEdit    = isGIP;
+  const canApprove = isPM;
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOut, isAdmin }}>
+    <AuthContext.Provider value={{ user, signIn, logout, loading, role, isAdmin, isPM, isGIP, canEdit, canApprove }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-export const useAuth = () => useContext(AuthContext);
+export function useAuth() {
+  return useContext(AuthContext);
+}

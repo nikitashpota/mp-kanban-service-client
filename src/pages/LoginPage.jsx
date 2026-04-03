@@ -25,8 +25,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-accent-dark flex items-center justify-center p-5">
       <div className="bg-white rounded-2xl shadow-2xl p-10 w-full max-w-sm">
-          <img src="/logo.png" alt="Моспроект" className="w-full h-auto object-contain mb-1.5" />
-
+        <img src="/logo.png" alt="Моспроект" className="w-full h-auto object-contain mb-1.5" />
 
         {error && (
           <div className="mb-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>
