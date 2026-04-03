@@ -122,7 +122,7 @@ export default function Sidebar({ projects = [] }) {
           <div className="w-8 h-8 rounded-full bg-[#C0392B] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">{initials}</div>
           <div className="min-w-0">
             <div className="text-[13px] font-medium text-gray-800 truncate">{user?.full_name || user?.username}</div>
-            <div className="text-[11px] text-gray-400">{user?.role === 'admin' ? 'Администратор' : 'Просмотр'}</div>
+            <div className="text-[11px] text-gray-400">{{ admin: 'Администратор', pm: 'РП', gip: 'ГИП', viewer: 'Наблюдатель' }[user?.role] || 'Наблюдатель'}</div>
           </div>
         </div>
         <button onClick={() => { signOut(); navigate('/login'); }}

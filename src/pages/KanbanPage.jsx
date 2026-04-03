@@ -8,12 +8,9 @@ import { useAuth } from '../context/AuthContext';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { SortSelect, sortProjects } from '../components/SortSelect';
 
-// PDF export — open new window with real styles copied from current page
 const exportToPDF = (tableEl, typeName) => {
   const printWindow = window.open('', '_blank', 'width=1400,height=900');
   const dateStr = new Date().toLocaleDateString('ru-RU');
-
-  // Copy all <link> and <style> tags from current document
   const styleLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
     .map(el => el.outerHTML).join('\n');
 
@@ -26,84 +23,29 @@ const exportToPDF = (tableEl, typeName) => {
   <style>
     @page { size: A4 landscape; margin: 8mm; }
     body { background: white !important; padding: 0 !important; margin: 0 !important; font-family: 'Inter', Arial, sans-serif; }
-    .print-header {
-      display: flex !important;
-      justify-content: space-between;
-      align-items: center;
-      background: #C0392B !important;
-      color: white !important;
-      padding: 6px 12px;
-      margin-bottom: 6px;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
+    .print-header { display: flex !important; justify-content: space-between; align-items: center; background: #C0392B !important; color: white !important; padding: 6px 12px; margin-bottom: 6px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .print-header-title { font-size: 13px; font-weight: 700; }
     .print-header-meta { font-size: 10px; opacity: 0.9; }
-    .print-legend {
-      display: flex !important;
-      align-items: center;
-      gap: 14px;
-      margin-bottom: 6px;
-      font-size: 9px;
-      flex-wrap: wrap;
-    }
+    .print-legend { display: flex !important; align-items: center; gap: 14px; margin-bottom: 6px; font-size: 9px; flex-wrap: wrap; }
     .print-legend-item { display: flex; align-items: center; gap: 4px; }
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-
-    /* Fix overflow */
     .overflow-auto, .overflow-x-auto, .overflow-hidden { overflow: visible !important; }
-
-    /* CRITICAL: fix dual cell height hacks */
-    td[style*="height: 1px"], td[style*="height:1px"] {
-      height: auto !important;
-      padding: 0 !important;
-    }
-
-    /* Dual cell wrapper — two equal halves */
-    .dual-cell-wrapper {
-      display: flex !important;
-      flex-direction: column !important;
-      width: 100% !important;
-      height: auto !important;
-      min-height: 0 !important;
-    }
-
-    /* Each half — equal height, centered */
-    .dual-cell-wrapper > div {
-      flex: 1 1 50% !important;
-      display: flex !important;
-      flex-direction: column !important;
-      align-items: center !important;
-      justify-content: center !important;
-      min-height: 40px !important;
-      padding: 4px 2px !important;
-      border-bottom: 1px solid #e5e7eb !important;
-    }
-    .dual-cell-wrapper > div:last-child {
-      border-bottom: none !important;
-    }
-
-    /* Remove flex constraints from other elements */
+    td[style*="height: 1px"], td[style*="height:1px"] { height: auto !important; padding: 0 !important; }
+    .dual-cell-wrapper { display: flex !important; flex-direction: column !important; width: 100% !important; height: auto !important; min-height: 0 !important; }
+    .dual-cell-wrapper > div { flex: 1 1 50% !important; display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; min-height: 40px !important; padding: 4px 2px !important; border-bottom: 1px solid #e5e7eb !important; }
+    .dual-cell-wrapper > div:last-child { border-bottom: none !important; }
     .flex-1, .min-h-0 { flex: none !important; height: auto !important; }
-
-    /* Text alignment in project cell */
     td .text-left, td .leading-snug { text-align: left !important; }
     td .text-center { text-align: center !important; }
     td .print-hide { display: none !important; }
-
-    /* Table base */
     table { font-size: 9px !important; width: 100% !important; border-collapse: collapse !important; }
     th, td { font-size: 9px !important; padding: 2px 3px !important; border: 1px solid #d1d5db !important; vertical-align: middle !important; text-align: center !important; }
     th { background: #f9fafb !important; font-weight: 600 !important; }
-
-    /* Status backgrounds */
     .bg-green-50 { background-color: #f0fdf4 !important; }
     .bg-red-50   { background-color: #fef2f2 !important; }
     .bg-yellow-50{ background-color: #fefce8 !important; }
     .bg-blue-50  { background-color: #eff6ff !important; }
     .bg-orange-50{ background-color: #fff7ed !important; }
-
-    /* SVG icons - keep size */
     svg { display: inline-block !important; }
     tr { page-break-inside: avoid; }
     thead { display: table-header-group; }
@@ -115,11 +57,8 @@ const exportToPDF = (tableEl, typeName) => {
     <span class="print-header-meta">${dateStr}</span>
   </div>
   <div class="print-legend" id="legend"></div>
-  <div style="overflow:visible">
-    ${tableEl.outerHTML}
-  </div>
+  <div style="overflow:visible">${tableEl.outerHTML}</div>
   <script>
-    // Build legend from SVGs in the page
     const statusColors = {
       done: {color:'#16a34a', label:'Исполнено'},
       not_provided: {color:'#dc2626', label:'Не обеспечено'},
@@ -135,7 +74,6 @@ const exportToPDF = (tableEl, typeName) => {
       item.innerHTML = '<svg width="14" height="14" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="' + color + '"/></svg> ' + label;
       legend.appendChild(item);
     });
-    // Print after styles load
     window.onload = function() { setTimeout(function(){ window.print(); }, 600); };
   </script>
 </body>
@@ -143,13 +81,11 @@ const exportToPDF = (tableEl, typeName) => {
   printWindow.document.close();
 };
 
-// ── Kanban column definitions ────────────────────────────────
-// ── ADMINISTRATIVE kanban columns ────────────────────────────
 const KANBAN_COLS_ADMIN = [
   { key: 'thz',    label: 'ТхЗ',                   group: 'Исходные данные',      stageNum: '4'   },
   { key: 'bzu',    label: 'Границы ЗУ',             group: 'Исходные данные',      stageNum: 'bzu' },
-  { key: 'dazu',   label: 'ДАЗУ',                  group: 'Исходные данные',      stageNum: '3'   },
-  { key: 'gpzu',   label: 'ГПЗУ',                  group: 'Исходные данные',      stageNum: '2', groupEnd: true },
+  { key: 'dazu',   label: 'ДАЗУ',                   group: 'Исходные данные',      stageNum: '3'   },
+  { key: 'gpzu',   label: 'ГПЗУ',                   group: 'Исходные данные',      stageNum: '2', groupEnd: true },
   { key: 'geod',   label: 'Геодезия',               group: 'Инженерные изыскания', stageNum: '5',  dual: true, date1Field: 'execution_actual', date2Field: 'execution_actual_2' },
   { key: 'geol',   label: 'Геология',               group: 'Инженерные изыскания', stageNum: '6',  dual: true, date1Field: 'execution_actual', date2Field: 'execution_actual_2' },
   { key: 'ecol',   label: 'Экология',               group: 'Инженерные изыскания', stageNum: '7',  dual: true, date1Field: 'execution_actual', date2Field: 'execution_actual_2', groupEnd: true },
@@ -158,27 +94,25 @@ const KANBAN_COLS_ADMIN = [
   { key: 'shopr',  label: 'ШОПР',                   group: 'Стадия Проект',        stageNum: 'shopr' },
   { key: 'afk',    label: 'АФК / пред.АГР',         group: 'Стадия Проект',        stageNum: '15', dualSimple: true },
   { key: 'agr',    label: 'АГР',                    group: 'Стадия Проект',        stageNum: '18' },
-  { key: 'mge_in', label: 'Загрузка МГЭ',        group: 'Стадия Проект',        stageNum: '22' },
+  { key: 'mge_in', label: 'Загрузка МГЭ',           group: 'Стадия Проект',        stageNum: '22' },
   { key: 'mge_out',label: 'МГЭ заключение', labelLines: ['МГЭ', 'заключение'], group: 'Стадия Проект', stageNum: '23' },
 ];
 
-// ── RESIDENTIAL (Жильё) kanban columns ───────────────────────
 const KANBAN_COLS_RESIDENTIAL = [
-  { key: 'kvart',  label: 'Кварт.графия',        group: 'Исходные данные',      stageNum: 'kvart' },
-  { key: 'snos',   label: 'Снос',                group: 'Исходные данные',      stageNum: 'snos', groupEnd: true },
-  { key: 'geod',   label: 'Геодезия',            group: 'Инженерные изыскания', stageNum: '5',  dual: true, date1Field: 'execution_actual', date2Field: 'execution_actual_2' },
-  { key: 'geol',   label: 'Геология',            group: 'Инженерные изыскания', stageNum: '6',  dual: true, date1Field: 'execution_actual', date2Field: 'execution_actual_2' },
-  { key: 'ecol',   label: 'Экология',            group: 'Инженерные изыскания', stageNum: '7',  dual: true, date1Field: 'execution_actual', date2Field: 'execution_actual_2', groupEnd: true },
-  { key: 'apr',    label: 'АПР',                 group: 'Стадия Проект',        stageNum: '10', dualSimple: true },
-  { key: 'nagruz', label: 'Выдача нагрузок РСО', labelLines: ['Выдача', 'нагрузок РСО'], group: 'Стадия Проект', stageNum: '13' },
-  { key: 'rso',    label: 'Договора с РСО (ТУ)', labelLines: ['Договора', 'с РСО (ТУ)'],  group: 'Стадия Проект', stageNum: '14' },
-  { key: 'afk',    label: 'АФК / пред.АГР',      group: 'Стадия Проект',        stageNum: '15', dualSimple: true },
-  { key: 'agr',    label: 'АГР',                 group: 'Стадия Проект',        stageNum: '18' },
-  { key: 'mge_in', label: 'Загрузка МГЭ',        group: 'Стадия Проект',        stageNum: '22' },
+  { key: 'kvart',  label: 'Кварт.графия',           group: 'Исходные данные',      stageNum: 'kvart' },
+  { key: 'snos',   label: 'Снос',                   group: 'Исходные данные',      stageNum: 'snos', groupEnd: true },
+  { key: 'geod',   label: 'Геодезия',               group: 'Инженерные изыскания', stageNum: '5',  dual: true, date1Field: 'execution_actual', date2Field: 'execution_actual_2' },
+  { key: 'geol',   label: 'Геология',               group: 'Инженерные изыскания', stageNum: '6',  dual: true, date1Field: 'execution_actual', date2Field: 'execution_actual_2' },
+  { key: 'ecol',   label: 'Экология',               group: 'Инженерные изыскания', stageNum: '7',  dual: true, date1Field: 'execution_actual', date2Field: 'execution_actual_2', groupEnd: true },
+  { key: 'apr',    label: 'АПР',                    group: 'Стадия Проект',        stageNum: '10', dualSimple: true },
+  { key: 'nagruz', label: 'Выдача нагрузок РСО',    labelLines: ['Выдача', 'нагрузок РСО'], group: 'Стадия Проект', stageNum: '13' },
+  { key: 'rso',    label: 'Договора с РСО (ТУ)',     labelLines: ['Договора', 'с РСО (ТУ)'],  group: 'Стадия Проект', stageNum: '14' },
+  { key: 'afk',    label: 'АФК / пред.АГР',         group: 'Стадия Проект',        stageNum: '15', dualSimple: true },
+  { key: 'agr',    label: 'АГР',                    group: 'Стадия Проект',        stageNum: '18' },
+  { key: 'mge_in', label: 'Загрузка МГЭ',           group: 'Стадия Проект',        stageNum: '22' },
   { key: 'mge_out',label: 'МГЭ заключение', labelLines: ['МГЭ', 'заключение'], group: 'Стадия Проект', stageNum: '23' },
-  { key: 'rd_zero',label: 'Выдача РД нул. цикла', group: 'Стадия Проект',       stageNum: 'rd_zero' },
+  { key: 'rd_zero',label: 'Выдача РД нул. цикла',   group: 'Стадия Проект',        stageNum: 'rd_zero' },
 ];
-// dual = 1й/2й этап с метками | dualSimple = два ряда без меток
 
 const GROUP_COLORS = {
   'Исходные данные':      'text-[#C0392B] bg-red-50',
@@ -186,8 +120,6 @@ const GROUP_COLORS = {
   'Стадия Проект':        'text-blue-700 bg-blue-50',
 };
 
-// ── Status config ─────────────────────────────────────────────
-// ── Status icons (SVG, no emoji) ─────────────────────────────
 const StatusIcon = ({ type, size = 18 }) => {
   const icons = {
     done: (
@@ -263,7 +195,6 @@ function useDualCell(stage, onUpdate, projectId, stageNum, date1Field = 'executi
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Guard — stage может быть null если паспорт не создан
   const safeStage = stage || {};
 
   const pickStatus = async (which, key) => {
@@ -271,9 +202,9 @@ function useDualCell(stage, onUpdate, projectId, stageNum, date1Field = 'executi
     which === 1 ? setOpen1(false) : setOpen2(false);
     await onUpdate(stage?.id, which === 1 ? { kanban_status: key } : { kanban_status_2: key }, projectId, stageNum);
   };
+
   const saveDate = async () => {
     if (!stage && !projectId) return;
-    // Use the actual field names from col definition
     const fieldName = dateEdit === 1 ? (date1Field || 'execution_actual') : (date2Field || 'execution_actual_2');
     const field = { [fieldName]: dateVal };
     setDateEdit(null);
@@ -320,9 +251,9 @@ function useDualCell(stage, onUpdate, projectId, stageNum, date1Field = 'executi
 function DualStatusCell({ stage, projectId, stageNum, isAdmin, onUpdate, groupBorderStyle = {}, date1Field, date2Field }) {
   const { ref, open1, setOpen1, open2, setOpen2, dateEdit, setDateEdit, dateVal, st1, st2, date1, date2, Picker, DateOverlay, safeStage } = useDualCell(stage, onUpdate, projectId, stageNum, date1Field, date2Field);
 
-
   const SubRow = ({ which, st, date, open, setOpen }) => (
-    <div className={`w-full flex-1 flex flex-col items-center justify-center border-b border-gray-100 last:border-0 ${st ? st.bg : ''} ${isAdmin ? 'cursor-pointer hover:brightness-95' : ''}`}
+    <div
+      className={`w-full flex-1 flex flex-col items-center justify-center border-b border-gray-100 last:border-0 ${st ? st.bg : ''} ${isAdmin ? 'cursor-pointer hover:brightness-95' : ''}`}
       style={{ gap: '0.5rem', paddingTop: '6px', paddingBottom: '6px' }}
       onClick={() => isAdmin && setOpen(o => !o)}>
       <span className="text-[9px] text-gray-400 font-bold leading-none">{which}эт</span>
@@ -336,36 +267,39 @@ function DualStatusCell({ stage, projectId, stageNum, isAdmin, onUpdate, groupBo
   );
 
   return (
-    <td className="border border-gray-100 p-0 relative" style={{height:"1px", padding:0, ...groupBorderStyle}} ref={ref}>
-      <div style={{height:"100%", minHeight:"100%"}} className="flex flex-col dual-cell-wrapper">
+    <td className="border border-gray-100 p-0 relative" style={{ height: '1px', padding: 0, ...groupBorderStyle }} ref={ref}>
+      <div style={{ height: '100%', minHeight: '100%' }} className="flex flex-col dual-cell-wrapper">
         <SubRow which={1} st={st1} date={date1} open={open1} setOpen={setOpen1} />
         <SubRow which={2} st={st2} date={date2} open={open2} setOpen={setOpen2} />
       </div>
-      {open1 && <Picker which={1} currentKey={stage.kanban_status} />}
-      {open2 && <div className="absolute bottom-0 left-full z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-52 ml-1">
-        {STATUSES.map(s => (
-          <button key={s.key} onClick={async () => { setOpen2(false); await onUpdate(stage?.id, { kanban_status_2: s.key }, projectId, stageNum); }}
-            className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 ${safeStage.kanban_status_2 === s.key ? 'font-semibold' : ''}`}>
-            <StatusIcon type={s.key} size={14} /><span className={s.text}>{s.label}</span>
-            {safeStage.kanban_status_2 === s.key && <span className="ml-auto text-gray-300">✓</span>}
-          </button>
-        ))}
-        <div className="border-t border-gray-100 mt-1 pt-1">
-          <button onClick={async () => { setOpen2(false); await onUpdate(stage?.id, { kanban_status_2: null }, projectId, stageNum); }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50">✕ Очистить</button>
+      {open1 && <Picker which={1} currentKey={stage?.kanban_status} />}
+      {open2 && (
+        <div className="absolute bottom-0 left-full z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-52 ml-1">
+          {STATUSES.map(s => (
+            <button key={s.key} onClick={async () => { setOpen2(false); await onUpdate(stage?.id, { kanban_status_2: s.key }, projectId, stageNum); }}
+              className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 ${safeStage.kanban_status_2 === s.key ? 'font-semibold' : ''}`}>
+              <StatusIcon type={s.key} size={14} /><span className={s.text}>{s.label}</span>
+              {safeStage.kanban_status_2 === s.key && <span className="ml-auto text-gray-300">✓</span>}
+            </button>
+          ))}
+          <div className="border-t border-gray-100 mt-1 pt-1">
+            <button onClick={async () => { setOpen2(false); await onUpdate(stage?.id, { kanban_status_2: null }, projectId, stageNum); }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50">✕ Очистить</button>
+          </div>
         </div>
-      </div>}
+      )}
       {dateEdit && <DateOverlay />}
     </td>
   );
 }
 
-// ── DualSimpleCell — без меток (АПР, АФК) — просто 2 строки ──
+// ── DualSimpleCell — без меток (АПР, АФК) ────────────────────
 function DualSimpleCell({ stage, projectId, stageNum, isAdmin, onUpdate, groupBorderStyle = {}, date1Field, date2Field }) {
   const { ref, open1, setOpen1, open2, setOpen2, dateEdit, setDateEdit, dateVal, setDateVal, st1, st2, date1, date2, Picker, DateOverlay, safeStage } = useDualCell(stage, onUpdate, projectId, stageNum, date1Field, date2Field);
 
-
   const SimpleRow = ({ which, st, date, open, setOpen }) => (
-    <div className={`w-full flex-1 flex flex-col items-center justify-center border-b border-gray-100 last:border-0 ${st ? st.bg : ''} ${isAdmin ? 'cursor-pointer hover:brightness-95' : ''}`}
+    <div
+      className={`w-full flex-1 flex flex-col items-center justify-center border-b border-gray-100 last:border-0 ${st ? st.bg : ''} ${isAdmin ? 'cursor-pointer hover:brightness-95' : ''}`}
       style={{ gap: '0.5rem', paddingTop: '6px', paddingBottom: '6px' }}
       onClick={() => isAdmin && setOpen(o => !o)}>
       {st ? <StatusIcon type={st.key} size={17} /> : <span className="text-gray-200 text-base">·</span>}
@@ -378,31 +312,33 @@ function DualSimpleCell({ stage, projectId, stageNum, isAdmin, onUpdate, groupBo
   );
 
   return (
-    <td className="border border-gray-100 p-0 relative" style={{height:"1px", padding:0, ...groupBorderStyle}} ref={ref}>
-      <div style={{height:"100%", minHeight:"100%"}} className="flex flex-col dual-cell-wrapper">
+    <td className="border border-gray-100 p-0 relative" style={{ height: '1px', padding: 0, ...groupBorderStyle }} ref={ref}>
+      <div style={{ height: '100%', minHeight: '100%' }} className="flex flex-col dual-cell-wrapper">
         <SimpleRow which={1} st={st1} date={date1} open={open1} setOpen={setOpen1} />
         <SimpleRow which={2} st={st2} date={date2} open={open2} setOpen={setOpen2} />
       </div>
       {open1 && <Picker which={1} currentKey={safeStage.kanban_status} />}
-      {open2 && <div className="absolute bottom-0 left-full z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-52 ml-1">
-        {STATUSES.map(s => (
-          <button key={s.key} onClick={async () => { setOpen2(false); await onUpdate(stage?.id, { kanban_status_2: s.key }, projectId, stageNum); }}
-            className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 ${safeStage.kanban_status_2 === s.key ? 'font-semibold' : ''}`}>
-            <StatusIcon type={s.key} size={14} /><span className={s.text}>{s.label}</span>
-            {safeStage.kanban_status_2 === s.key && <span className="ml-auto text-gray-300">✓</span>}
-          </button>
-        ))}
-        <div className="border-t border-gray-100 mt-1 pt-1">
-          <button onClick={async () => { setOpen2(false); await onUpdate(stage?.id, { kanban_status_2: null }, projectId, stageNum); }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50">✕ Очистить</button>
+      {open2 && (
+        <div className="absolute bottom-0 left-full z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-52 ml-1">
+          {STATUSES.map(s => (
+            <button key={s.key} onClick={async () => { setOpen2(false); await onUpdate(stage?.id, { kanban_status_2: s.key }, projectId, stageNum); }}
+              className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 ${safeStage.kanban_status_2 === s.key ? 'font-semibold' : ''}`}>
+              <StatusIcon type={s.key} size={14} /><span className={s.text}>{s.label}</span>
+              {safeStage.kanban_status_2 === s.key && <span className="ml-auto text-gray-300">✓</span>}
+            </button>
+          ))}
+          <div className="border-t border-gray-100 mt-1 pt-1">
+            <button onClick={async () => { setOpen2(false); await onUpdate(stage?.id, { kanban_status_2: null }, projectId, stageNum); }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50">✕ Очистить</button>
+          </div>
         </div>
-      </div>}
+      )}
       {dateEdit && <DateOverlay />}
     </td>
   );
 }
 
-
-// ── Status cell with click-to-change ─────────────────────────
+// ── StatusCell ────────────────────────────────────────────────
 function StatusCell({ stage, projectId, stageNum, isAdmin, onUpdate, groupBorderStyle = {} }) {
   const [open, setOpen] = useState(false);
   const [dateEdit, setDateEdit] = useState(false);
@@ -416,9 +352,11 @@ function StatusCell({ stage, projectId, stageNum, isAdmin, onUpdate, groupBorder
   }, []);
 
   if (!stage && !isAdmin) {
-    return <td className="border border-gray-100 text-center" style={groupBorderStyle}>
-      <div className="text-gray-200 text-xs">—</div>
-    </td>;
+    return (
+      <td className="border border-gray-100 text-center" style={groupBorderStyle}>
+        <div className="text-gray-200 text-xs">—</div>
+      </td>
+    );
   }
 
   const st = STATUS_MAP[stage?.kanban_status];
@@ -446,7 +384,7 @@ function StatusCell({ stage, projectId, stageNum, isAdmin, onUpdate, groupBorder
           {date ? (
             <span
               className={`text-[10px] font-semibold leading-none transition-colors ${st ? st.text : 'text-gray-400'} ${isAdmin ? 'hover:text-blue-500 hover:underline cursor-pointer' : ''}`}
-              onClick={e => { if (isAdmin) { e.stopPropagation(); setDateEdit(true); setDateVal(date.slice(0,10)); }}}
+              onClick={e => { if (isAdmin) { e.stopPropagation(); setDateEdit(true); setDateVal(date.slice(0, 10)); }}}
             >{fmtDate(date)}</span>
           ) : isAdmin ? (
             <span className="text-[10px] text-gray-300 leading-none hover:text-blue-500 hover:underline cursor-pointer transition-colors"
@@ -490,7 +428,7 @@ function StatusCell({ stage, projectId, stageNum, isAdmin, onUpdate, groupBorder
   );
 }
 
-// ── Project type manager modal ────────────────────────────────
+// ── TypesModal ────────────────────────────────────────────────
 function TypesModal({ types, onClose, onCreated, onDeleted }) {
   const [name, setName] = useState('');
   const [color, setColor] = useState('#6b7280');
@@ -539,7 +477,7 @@ function TypesModal({ types, onClose, onCreated, onDeleted }) {
   );
 }
 
-// ── Smart Sort Modal ──────────────────────────────────────────
+// ── SmartSortModal ────────────────────────────────────────────
 function SmartSortModal({ cols, onApply, onClose, initial }) {
   const [selCols, setSelCols] = useState(initial?.cols || []);
   const [selStatuses, setSelStatuses] = useState(initial?.statuses || []);
@@ -556,17 +494,13 @@ function SmartSortModal({ cols, onApply, onClose, initial }) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
         </div>
         <div className="p-6 space-y-5">
-
-          {/* Step 1: Columns */}
           <div>
             <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">1. Выберите столбцы (порядок имеет значение)</div>
             <div className="flex flex-wrap gap-2">
               {cols.map(col => (
                 <button key={col.key} onClick={() => toggleCol(col.key)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl border transition-all ${
-                    selCols.includes(col.key)
-                      ? 'bg-[#C0392B] text-white border-[#C0392B]'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                    selCols.includes(col.key) ? 'bg-[#C0392B] text-white border-[#C0392B]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
                   }`}>
                   {col.label}
                   {selCols.includes(col.key) && (
@@ -584,16 +518,13 @@ function SmartSortModal({ cols, onApply, onClose, initial }) {
             )}
           </div>
 
-          {/* Step 2: Statuses */}
           <div>
             <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">2. Приоритет статусов (порядок имеет значение)</div>
             <div className="flex flex-wrap gap-2">
-              {STATUSES.map((s, i) => (
+              {STATUSES.map(s => (
                 <button key={s.key} onClick={() => toggleStatus(s.key)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl border transition-all ${
-                    selStatuses.includes(s.key)
-                      ? 'border-gray-400 bg-gray-50'
-                      : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
+                    selStatuses.includes(s.key) ? 'border-gray-400 bg-gray-50' : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
                   }`}>
                   <StatusIcon type={s.key} size={13} />
                   <span className={selStatuses.includes(s.key) ? s.text : 'text-gray-400'}>{s.label}</span>
@@ -612,7 +543,6 @@ function SmartSortModal({ cols, onApply, onClose, initial }) {
             )}
           </div>
 
-          {/* Step 3: Date */}
           <div>
             <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">3. Сортировка по дате</div>
             <div className="flex gap-2">
@@ -650,13 +580,12 @@ function SmartSortModal({ cols, onApply, onClose, initial }) {
 
 // ══════════════════════════════════════════════════════════════
 export default function KanbanPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, canApprove, canEdit } = useAuth();
   const nav = useNavigate();
 
   const [rows, setRows] = useState([]);
   const [types, setTypes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [pdfExporting, setPdfExporting] = useState(false);
   const tableRef = useRef();
   const [filterType, setFilterType] = usePersistentState('kanban_filterType', '');
   const [search, setSearch] = usePersistentState('kanban_search', '');
@@ -666,11 +595,13 @@ export default function KanbanPage() {
   });
   const [sortValue, setSortValue] = usePersistentState('kanban_sort', 'name_asc');
   const [statusFilter, setStatusFilter] = usePersistentState('kanban_statusFilter', []);
-  const [showStatusPanel, setShowStatusPanel] = useState(false);
-  const [smartSort, setSmartSort] = usePersistentState('kanban_smartSort', null); // {cols: [], statuses: [], dateDir: 'asc'}
+  const [smartSort, setSmartSort] = usePersistentState('kanban_smartSort', null);
   const [smartSortModal, setSmartSortModal] = useState(false);
   const [typesModal, setTypesModal] = useState(false);
   const [assigningId, setAssigningId] = useState(null);
+
+  // isAdmin в ячейках канбана = canApprove (РП + admin могут менять статусы)
+  const cellAdmin = canApprove;
 
   const load = async () => {
     setLoading(true);
@@ -709,7 +640,6 @@ export default function KanbanPage() {
     setDashFilter(null);
   };
 
-  // Filter + sort
   let visible = sortProjects(
     rows.filter(p => {
       if (dashFilter) return dashFilter.ids.includes(p.id);
@@ -725,7 +655,6 @@ export default function KanbanPage() {
     sortValue
   );
 
-  // Apply smart sort if active
   if (smartSort?.cols?.length > 0) {
     visible = [...visible].sort((a, b) => {
       for (const colKey of smartSort.cols) {
@@ -733,8 +662,6 @@ export default function KanbanPage() {
         if (!col) continue;
         const sa = a.stages?.[col.stageNum];
         const sb = b.stages?.[col.stageNum];
-
-        // Status priority score (lower = higher priority)
         const statusScore = (s) => {
           if (!s) return 99;
           const st = s.kanban_status;
@@ -746,11 +673,8 @@ export default function KanbanPage() {
           const i = order.indexOf(st);
           return i >= 0 ? i : 97;
         };
-
         const scoreDiff = statusScore(sa) - statusScore(sb);
         if (scoreDiff !== 0) return scoreDiff;
-
-        // Date sort within same status
         if (smartSort.dateDir) {
           const da = sa?.execution_actual || sa?.deadline_directive || '';
           const db = sb?.execution_actual || sb?.deadline_directive || '';
@@ -761,18 +685,10 @@ export default function KanbanPage() {
     });
   }
 
-  // ── Determine active column set based on selected type ──────
   const activeType = types.find(t => String(t.id) === filterType);
-  const KANBAN_COLS = activeType?.kanban_type === 'residential'
-    ? KANBAN_COLS_RESIDENTIAL
-    : KANBAN_COLS_ADMIN;
+  const KANBAN_COLS = activeType?.kanban_type === 'residential' ? KANBAN_COLS_RESIDENTIAL : KANBAN_COLS_ADMIN;
   const GROUPS = [...new Set(KANBAN_COLS.map(c => c.group))];
-
-  // Group columns by group
-  const groupedCols = GROUPS.map(g => ({
-    group: g,
-    cols: KANBAN_COLS.filter(c => c.group === g),
-  }));
+  const groupedCols = GROUPS.map(g => ({ group: g, cols: KANBAN_COLS.filter(c => c.group === g) }));
 
   const thCls = 'border border-gray-100 bg-gray-50 text-[11px] font-semibold text-gray-500 text-center px-1 py-2 leading-tight align-middle';
   const thFixedCls = 'border border-gray-100 bg-gray-50 text-[11px] font-semibold text-gray-500 text-center px-1 py-2 whitespace-nowrap align-middle';
@@ -780,7 +696,6 @@ export default function KanbanPage() {
   return (
     <div className="print-kanban-root flex flex-col h-full" style={{ height: 'calc(100vh - 56px - 48px)' }}>
 
-      {/* ── PRINT ONLY: header + legend ── */}
       <div className="print-header" style={{ display: 'none' }}>
         <span className="print-header-title">Сводный канбан — {activeType?.name || 'Все'}</span>
         <span className="print-header-meta">{new Date().toLocaleDateString('ru-RU')}</span>
@@ -794,7 +709,7 @@ export default function KanbanPage() {
         ))}
       </div>
 
-      {/* ── TYPE TABS — обособлены сверху ── */}
+      {/* Type tabs */}
       {types.length > 0 && !dashFilter && (
         <div className="mb-5 print-hide">
           <div className="flex items-center gap-2 flex-wrap">
@@ -817,38 +732,25 @@ export default function KanbanPage() {
           <p className="text-sm text-gray-400 mt-0.5">{visible.length} объект(ов)</p>
           {dashFilter && (
             <div className="flex items-center gap-2 mt-1.5">
-              <span className="text-xs font-semibold text-white bg-[#C0392B] px-2.5 py-1 rounded-full">
-                {dashFilter.label}
-              </span>
-              <button onClick={clearDashFilter}
-                className="text-xs text-gray-400 hover:text-gray-700 transition-colors">
-                × сбросить фильтр дашборда
-              </button>
+              <span className="text-xs font-semibold text-white bg-[#C0392B] px-2.5 py-1 rounded-full">{dashFilter.label}</span>
+              <button onClick={clearDashFilter} className="text-xs text-gray-400 hover:text-gray-700 transition-colors">× сбросить фильтр дашборда</button>
             </div>
           )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Sort always visible */}
           <SortSelect value={sortValue} onChange={setSortValue} />
-
-          {/* Regular filters — hidden when dash filter active */}
           {!dashFilter && (
             <>
-              {/* Search */}
               <input
                 className="px-3 py-1.5 text-xs border border-gray-200 rounded-xl bg-white text-gray-700 focus:outline-none focus:border-[#C0392B] transition-all w-52"
                 placeholder="Поиск по названию..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
               />
-
-              {/* Problematic filter */}
               <button onClick={() => setShowProblematic(p => !p)}
                 className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all ${showProblematic ? 'bg-red-500 text-white border-red-500' : 'bg-white text-gray-500 border-gray-200 hover:border-red-400 hover:text-red-600'}`}>
                 ⚠ Проблемные
               </button>
-
-              {/* Smart sort button */}
               <button onClick={() => setSmartSortModal(true)}
                 className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all ${
                   smartSort ? 'bg-[#C0392B] text-white border-[#C0392B]' : 'bg-white text-gray-500 border-gray-200 hover:border-[#C0392B] hover:text-[#C0392B]'
@@ -858,29 +760,20 @@ export default function KanbanPage() {
               {smartSort && (
                 <button onClick={() => setSmartSort(null)}
                   className="px-2 py-1.5 text-xs font-semibold rounded-xl border border-gray-200 bg-white text-gray-400 hover:text-red-500 hover:border-red-300 transition-all"
-                  title="Сбросить сортировку">
-                  ✕
-                </button>
+                  title="Сбросить сортировку">✕</button>
               )}
-
-
             </>
           )}
-
-          {/* Manage types */}
-          {isAdmin && !dashFilter && (
+          {canEdit && !dashFilter && (
             <button onClick={() => nav('/settings')}
               className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 transition-all">
               ⚙ Настройки
             </button>
           )}
-
-          {/* Switch to cards */}
           <button onClick={() => { if (tableRef.current) exportToPDF(tableRef.current, activeType?.name || 'Все объекты'); }}
             className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 transition-all">
             ⬇ PDF
           </button>
-
           <button onClick={() => nav('/projects')}
             className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 transition-all">
             ☰ Карточки
@@ -912,26 +805,21 @@ export default function KanbanPage() {
           <div className="overflow-auto flex-1" ref={tableRef}>
             <table className="border-collapse w-full" style={{ tableLayout: 'fixed', minWidth: 900 }}>
               <thead className="sticky top-0 z-10">
-                {/* Group header row */}
                 <tr>
                   <th className={`${thFixedCls} w-8`} rowSpan={2}>№</th>
                   <th className={`${thFixedCls} text-left`} style={{ width: '16%' }} rowSpan={2}>Объект</th>
                   <th className={`${thFixedCls}`} style={{ width: '7%' }} rowSpan={2}>Договор</th>
                   {groupedCols.map(({ group, cols }, gi) => (
-                    <th key={group}
-                      className={`${thFixedCls} text-center font-bold`}
-                      colSpan={cols.length}
+                    <th key={group} className={`${thFixedCls} text-center font-bold`} colSpan={cols.length}
                       style={{ borderRight: gi < groupedCols.length - 1 ? '2px solid #d1d5db' : undefined }}>
                       <span className={`px-2 py-0.5 rounded ${GROUP_COLORS[group] || ''}`}>{group}</span>
                     </th>
                   ))}
                   <th className={`${thFixedCls}`} style={{ width: '11%' }} rowSpan={2}>Примечание</th>
                 </tr>
-                {/* Column labels */}
                 <tr>
                   {KANBAN_COLS.map(col => (
-                    <th key={col.key}
-                      className={thCls}
+                    <th key={col.key} className={thCls}
                       style={{ maxWidth: 56, borderRight: col.groupEnd ? '2px solid #d1d5db' : undefined }}>
                       {col.labelLines ? (
                         <div className="text-[10px] leading-tight text-center">
@@ -953,60 +841,45 @@ export default function KanbanPage() {
                   const hasStages = Object.keys(p.stages || {}).length > 0;
                   return (
                     <tr key={p.id} className={`hover:bg-gray-50/50 transition-colors ${isProblematic ? 'border-l-2 border-l-red-400' : ''}`}>
-                      {/* № */}
                       <td className="border border-gray-100 text-center text-xs text-gray-400 px-2 py-2">{idx + 1}</td>
 
-                      {/* Project name */}
                       <td className="border border-gray-100 px-3 py-2">
-                        <button
-                          onClick={() => nav(`/projects/${p.id}`)}
-                          className="text-xs font-semibold text-gray-800 hover:text-[#C0392B] text-left leading-snug transition-colors block w-full break-words"
-                        >
+                        <button onClick={() => nav(`/projects/${p.id}`)}
+                          className="text-xs font-semibold text-gray-800 hover:text-[#C0392B] text-left leading-snug transition-colors block w-full break-words">
                           {p.name}
                         </button>
-                        {p.address && (
-                          <div className="text-[10px] text-gray-400 mt-0.5 leading-snug text-left">📍 {p.address}</div>
-                        )}
+                        {p.address && <div className="text-[10px] text-gray-400 mt-0.5 leading-snug text-left">📍 {p.address}</div>}
                         {p.area_total && (
                           <div className="text-[10px] text-gray-500 mt-0.5 font-medium text-left">
                             {Number(p.area_total).toLocaleString('ru-RU', { maximumFractionDigits: 0 })} м²
                           </div>
                         )}
-                        {/* Type + flags — hidden in print */}
                         <div className="print-hide mt-1 flex items-center gap-1.5 flex-wrap">
-                          {p.type_name ? (
+                          {p.type_name && (
                             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full text-white"
                               style={{ background: p.type_color || '#6b7280' }}>
                               {p.type_name}
                             </span>
-                          ) : null}
-                          {isAdmin && (
+                          )}
+                          {canEdit && (
                             <button onClick={() => setAssigningId(p.id)}
                               className="text-[10px] text-gray-300 hover:text-[#C0392B] transition-colors">
                               {p.type_name ? '✏' : '+ тип'}
                             </button>
                           )}
-                          {isProblematic && (
-                            <span className="text-[10px] text-red-500 font-semibold">⚠ {p.issue_count} пр.</span>
-                          )}
-                          {!hasStages && isAdmin && (
-                            <span className="text-[9px] text-gray-400 italic">нет этапов — откройте объект</span>
-                          )}
+                          {isProblematic && <span className="text-[10px] text-red-500 font-semibold">⚠ {p.issue_count} пр.</span>}
+                          {!hasStages && isAdmin && <span className="text-[9px] text-gray-400 italic">нет этапов — откройте объект</span>}
                         </div>
                       </td>
 
-                      {/* Contract */}
                       <td className="border border-gray-100 px-2 py-2 text-center">
                         <span className="text-[11px] text-gray-600">{p.contract_pir || '—'}</span>
                       </td>
 
-                      {/* Stage cells */}
                       {(() => {
-                        const hasStages = Object.keys(p.stages || {}).length > 0;
                         if (!hasStages) {
                           return KANBAN_COLS.map(col => (
-                            <td key={col.key}
-                              className="border border-gray-100 p-0 bg-gray-50/50"
+                            <td key={col.key} className="border border-gray-100 p-0 bg-gray-50/50"
                               style={col.groupEnd ? { borderRight: '2px solid #d1d5db' } : {}}>
                               <div className="text-gray-200 text-center text-[8px] py-2">—</div>
                             </td>
@@ -1015,16 +888,17 @@ export default function KanbanPage() {
                         return KANBAN_COLS.map(col => {
                           const groupBorderStyle = col.groupEnd ? { borderRight: '2px solid #d1d5db' } : {};
                           const stage = p.stages[col.stageNum];
-                          const cellProps = { stage, isAdmin, onUpdate: handleUpdate, groupBorderStyle,
+                          const cellProps = {
+                            stage, isAdmin: cellAdmin, onUpdate: handleUpdate, groupBorderStyle,
                             projectId: p.id, stageNum: col.stageNum,
-                            date1Field: col.date1Field, date2Field: col.date2Field };
+                            date1Field: col.date1Field, date2Field: col.date2Field,
+                          };
                           if (col.dual) return <DualStatusCell key={col.key} {...cellProps} />;
                           if (col.dualSimple) return <DualSimpleCell key={col.key} {...cellProps} />;
                           return <StatusCell key={col.key} {...cellProps} />;
                         });
                       })()}
 
-                      {/* Примечание */}
                       <td className="border border-gray-100 px-2 py-2">
                         {p.issue_count > 0 ? (
                           <button onClick={() => nav(`/projects/${p.id}#issues`)}
@@ -1044,7 +918,7 @@ export default function KanbanPage() {
         </div>
       )}
 
-      {/* Type assignment dropdown */}
+      {/* Type assignment */}
       {assigningId && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setAssigningId(null)}>
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-5" onClick={e => e.stopPropagation()}>
@@ -1055,8 +929,7 @@ export default function KanbanPage() {
             <div className="space-y-2">
               <button onClick={() => handleAssignType(assigningId, null)}
                 className="w-full flex items-center gap-3 px-3 py-2.5 bg-gray-50 hover:bg-gray-100 rounded-xl text-sm text-gray-500 transition-all">
-                <div className="w-3 h-3 rounded-full bg-gray-300" />
-                Без типа
+                <div className="w-3 h-3 rounded-full bg-gray-300" />Без типа
               </button>
               {types.map(t => (
                 <button key={t.id} onClick={() => handleAssignType(assigningId, t.id)}
@@ -1065,32 +938,21 @@ export default function KanbanPage() {
                   {t.name}
                 </button>
               ))}
-              {types.length === 0 && (
-                <p className="text-sm text-gray-400 text-center py-4">Сначала создайте типы объектов</p>
-              )}
+              {types.length === 0 && <p className="text-sm text-gray-400 text-center py-4">Сначала создайте типы объектов</p>}
             </div>
           </div>
         </div>
       )}
 
-      {/* Smart sort modal */}
       {smartSortModal && (
-        <SmartSortModal
-          cols={KANBAN_COLS}
-          initial={smartSort}
+        <SmartSortModal cols={KANBAN_COLS} initial={smartSort}
           onApply={v => { setSmartSort(v); setSmartSortModal(false); }}
-          onClose={() => setSmartSortModal(false)}
-        />
+          onClose={() => setSmartSortModal(false)} />
       )}
 
-      {/* Types manager modal */}
       {typesModal && (
-        <TypesModal
-          types={types}
-          onClose={() => setTypesModal(false)}
-          onCreated={handleTypeCreated}
-          onDeleted={handleTypeDeleted}
-        />
+        <TypesModal types={types} onClose={() => setTypesModal(false)}
+          onCreated={handleTypeCreated} onDeleted={handleTypeDeleted} />
       )}
     </div>
   );

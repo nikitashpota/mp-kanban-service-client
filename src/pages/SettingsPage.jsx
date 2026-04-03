@@ -1,11 +1,27 @@
 import { useState, useEffect } from 'react';
-import { getProjectTypes, createProjectType, updateProjectType, deleteProjectType, getUsers, createUser, deleteUser } from '../api/client';
+import { getProjectTypes, createProjectType, updateProjectType, deleteProjectType } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+
+const API = 'http://localhost:3001/api';
 
 const inputCls = 'w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-[#C0392B] focus:ring-2 focus:ring-red-100 transition bg-white';
 function Field({ label, children }) {
   return <div><label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">{label}</label>{children}</div>;
+}
+
+// ── Роли ─────────────────────────────────────────────────────
+const ROLES = [
+  { key: 'admin',  label: 'Администратор', color: 'bg-red-100 text-red-700',    desc: 'Полный доступ' },
+  { key: 'pm',     label: 'РП',            color: 'bg-blue-100 text-blue-700',   desc: 'Канбан + Ход проектирования' },
+  { key: 'gip',    label: 'ГИП',           color: 'bg-green-100 text-green-700', desc: 'Только Ход проектирования' },
+  { key: 'viewer', label: 'Наблюдатель',   color: 'bg-gray-100 text-gray-600',   desc: 'Только просмотр' },
+];
+
+function RoleBadge({ role }) {
+  const r = ROLES.find(x => x.key === role) || ROLES[3];
+  return <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${r.color}`}>{r.label}</span>;
 }
 
 // ── Types Tab ─────────────────────────────────────────────────
@@ -86,46 +102,118 @@ function TypesTab() {
   );
 }
 
-// ── Users Tab ─────────────────────────────────────────────────
+// ── Users Tab с ролями ────────────────────────────────────────
 function UsersTab() {
   const [users, setUsers] = useState([]);
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ username: '', password: '', full_name: '', role: 'viewer' });
+  const [editId, setEditId] = useState(null);
+  const [editRole, setEditRole] = useState('viewer');
+  const [editPwd, setEditPwd] = useState('');
   const [msg, setMsg] = useState(null);
+  const [saving, setSaving] = useState(false);
   const { user: me } = useAuth();
+
   const flash = (text, type = 'success') => { setMsg({ text, type }); setTimeout(() => setMsg(null), 3000); };
-  const load = () => getUsers().then(setUsers).catch(() => {});
+  const load = async () => { try { const { data } = await axios.get(`${API}/users`); setUsers(data); } catch {} };
   useEffect(() => { load(); }, []);
+
   const save = async () => {
     if (!form.username || !form.password) { flash('Заполните логин и пароль', 'error'); return; }
-    try { await createUser(form); flash('Пользователь создан'); setModal(false); setForm({ username: '', password: '', full_name: '', role: 'viewer' }); load(); }
-    catch (err) { flash(err.response?.data?.error || 'Ошибка', 'error'); }
+    setSaving(true);
+    try {
+      await axios.post(`${API}/users`, form);
+      flash('Пользователь создан'); setModal(false);
+      setForm({ username: '', password: '', full_name: '', role: 'viewer' });
+      load();
+    } catch (err) { flash(err.response?.data?.error || 'Ошибка', 'error'); }
+    finally { setSaving(false); }
   };
+
+  const saveEdit = async (id) => {
+    setSaving(true);
+    try {
+      await axios.patch(`${API}/users/${id}`, { role: editRole, ...(editPwd ? { password: editPwd } : {}) });
+      setEditId(null); setEditPwd(''); flash('Сохранено'); load();
+    } catch { flash('Ошибка', 'error'); }
+    finally { setSaving(false); }
+  };
+
   const del = async id => {
     if (!confirm('Удалить пользователя?')) return;
-    try { await deleteUser(id); flash('Удалено'); load(); } catch { flash('Ошибка', 'error'); }
+    try { await axios.delete(`${API}/users/${id}`); flash('Удалено'); load(); }
+    catch { flash('Ошибка', 'error'); }
   };
+
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-        <span className="text-sm font-semibold text-gray-800">Пользователи <span className="text-gray-400 font-normal ml-1">({users.length})</span></span>
-        <button onClick={() => setModal(true)} className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-[#C0392B] hover:bg-[#96281B] text-white shadow-sm transition-all">+ Добавить</button>
+    <div className="space-y-5">
+      {/* Role legend */}
+      <div className="grid grid-cols-4 gap-3">
+        {ROLES.map(r => (
+          <div key={r.key} className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-100 rounded-xl shadow-sm">
+            <RoleBadge role={r.key} />
+            <span className="text-xs text-gray-500">{r.desc}</span>
+          </div>
+        ))}
       </div>
-      {msg && <div className={`mx-5 mt-3 text-xs px-3 py-2 rounded-xl border ${msg.type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>{msg.text}</div>}
-      <table className="w-full border-collapse">
-        <thead><tr>{['Логин', 'Имя', 'Роль', 'Дата создания', ''].map(h => <th key={h} className="px-5 py-3 text-[11px] font-semibold text-gray-400 bg-gray-50 border-b border-gray-100 text-left uppercase tracking-wide">{h}</th>)}</tr></thead>
-        <tbody className="divide-y divide-gray-50">
-          {users.map(u => (
-            <tr key={u.id} className="hover:bg-gray-50/50">
-              <td className="px-5 py-3.5 font-medium text-gray-900 text-sm">{u.username}</td>
-              <td className="px-5 py-3.5 text-gray-600 text-sm">{u.full_name || '—'}</td>
-              <td className="px-5 py-3.5"><span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${u.role === 'admin' ? 'bg-red-50 text-[#C0392B] border-red-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>{u.role === 'admin' ? 'Администратор' : 'Просмотр'}</span></td>
-              <td className="px-5 py-3.5 text-gray-400 text-xs">{new Date(u.created_at).toLocaleDateString('ru-RU')}</td>
-              <td className="px-5 py-3.5">{u.id !== me?.id && <button onClick={() => del(u.id)} className="text-xs px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-medium">✕ Удалить</button>}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+          <span className="text-sm font-semibold text-gray-800">Пользователи <span className="text-gray-400 font-normal ml-1">({users.length})</span></span>
+          <button onClick={() => setModal(true)} className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-[#C0392B] hover:bg-[#96281B] text-white shadow-sm transition-all">+ Добавить</button>
+        </div>
+
+        {msg && <div className={`mx-5 mt-3 text-xs px-3 py-2 rounded-xl border ${msg.type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>{msg.text}</div>}
+
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>{['Логин', 'Полное имя', 'Роль', 'Дата создания', ''].map(h => (
+              <th key={h} className="px-5 py-3 text-[11px] font-semibold text-gray-400 bg-gray-50 border-b border-gray-100 text-left uppercase tracking-wide">{h}</th>
+            ))}</tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {users.map(u => (
+              <tr key={u.id} className="hover:bg-gray-50/50">
+                <td className="px-5 py-3.5 font-medium text-gray-900 text-sm">{u.username}</td>
+                <td className="px-5 py-3.5 text-gray-600 text-sm">{u.full_name || '—'}</td>
+                <td className="px-5 py-3.5">
+                  {editId === u.id ? (
+                    <div className="flex items-center gap-2">
+                      <select value={editRole} onChange={e => setEditRole(e.target.value)}
+                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-[#C0392B]">
+                        {ROLES.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
+                      </select>
+                      <input type="password" placeholder="Новый пароль" value={editPwd}
+                        onChange={e => setEditPwd(e.target.value)}
+                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 w-28 focus:outline-none focus:border-[#C0392B]" />
+                      <button onClick={() => saveEdit(u.id)} disabled={saving}
+                        className="text-xs font-semibold px-3 py-1 bg-[#C0392B] text-white rounded-lg hover:bg-[#a93226] disabled:opacity-50">
+                        ✓
+                      </button>
+                      <button onClick={() => setEditId(null)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                    </div>
+                  ) : (
+                    <RoleBadge role={u.role} />
+                  )}
+                </td>
+                <td className="px-5 py-3.5 text-gray-400 text-xs">{new Date(u.created_at).toLocaleDateString('ru-RU')}</td>
+                <td className="px-5 py-3.5">
+                  {u.id !== me?.id && editId !== u.id && (
+                    <div className="flex gap-2">
+                      <button onClick={() => { setEditId(u.id); setEditRole(u.role || 'viewer'); setEditPwd(''); }}
+                        className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 font-medium">✏ Роль</button>
+                      <button onClick={() => del(u.id)}
+                        className="text-xs px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-medium">✕</button>
+                    </div>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Create modal */}
       {modal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setModal(false)}>
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
@@ -134,14 +222,18 @@ function UsersTab() {
               <button onClick={() => setModal(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
             </div>
             <div className="px-6 py-5 space-y-4">
-              <Field label="Логин *"><input className={inputCls} value={form.username} onChange={e => setForm(p => ({...p, username: e.target.value}))} autoComplete="username" /></Field>
-              <Field label="Пароль *"><input type="password" className={inputCls} value={form.password} onChange={e => setForm(p => ({...p, password: e.target.value}))} autoComplete="new-password" /></Field>
+              <Field label="Логин *"><input className={inputCls} value={form.username} onChange={e => setForm(p => ({...p, username: e.target.value}))} autoFocus /></Field>
+              <Field label="Пароль *"><input type="password" className={inputCls} value={form.password} onChange={e => setForm(p => ({...p, password: e.target.value}))} /></Field>
               <Field label="Полное имя"><input className={inputCls} value={form.full_name} onChange={e => setForm(p => ({...p, full_name: e.target.value}))} /></Field>
-              <Field label="Роль"><select className={inputCls} value={form.role} onChange={e => setForm(p => ({...p, role: e.target.value}))}><option value="viewer">Просмотр</option><option value="admin">Администратор</option></select></Field>
+              <Field label="Роль">
+                <select className={inputCls} value={form.role} onChange={e => setForm(p => ({...p, role: e.target.value}))}>
+                  {ROLES.map(r => <option key={r.key} value={r.key}>{r.label} — {r.desc}</option>)}
+                </select>
+              </Field>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
               <button onClick={() => setModal(false)} className="px-4 py-2 text-sm rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600">Отмена</button>
-              <button onClick={save} className="px-4 py-2 text-sm font-semibold rounded-xl bg-[#C0392B] hover:bg-[#96281B] text-white shadow-sm">Создать</button>
+              <button onClick={save} disabled={saving} className="px-4 py-2 text-sm font-semibold rounded-xl bg-[#C0392B] hover:bg-[#96281B] text-white shadow-sm disabled:opacity-50">Создать</button>
             </div>
           </div>
         </div>
@@ -150,12 +242,12 @@ function UsersTab() {
   );
 }
 
+// ── Main ──────────────────────────────────────────────────────
 export default function SettingsPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, canApprove } = useAuth();
   const nav = useNavigate();
   const [tab, setTab] = useState('types');
 
-  // Redirect non-admins
   useEffect(() => { if (isAdmin === false) nav('/'); }, [isAdmin, nav]);
 
   const tabs = [{ id: 'types', label: '🏷 Типы объектов' }, { id: 'users', label: '👤 Пользователи' }];

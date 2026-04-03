@@ -13,7 +13,7 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = usePersistentState('cards_filterType', '');
   const [sortValue, setSortValue] = usePersistentState('cards_sort', 'name_asc');
-  const { isAdmin } = useAuth();
+  const { isAdmin, canApprove } = useAuth();
   const nav = useNavigate();
 
   useEffect(() => {
@@ -70,7 +70,7 @@ export default function ProjectsPage() {
             value={search} onChange={e => setSearch(e.target.value)}
           />
           <SortSelect value={sortValue} onChange={setSortValue} />
-          {isAdmin && (
+          {canEdit && (
             <button onClick={() => nav('/admin/projects/new')}
               className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-[#C0392B] hover:bg-[#96281B] text-white shadow-sm transition-all">
               + Добавить

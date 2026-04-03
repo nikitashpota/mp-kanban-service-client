@@ -41,7 +41,7 @@ export function AuthProvider({ children }) {
   const canApprove = isPM;
 
   return (
-    <AuthContext.Provider value={{ user, signIn, logout, loading, role, isAdmin, isPM, isGIP, canEdit, canApprove }}>
+    <AuthContext.Provider value={{ user, signIn, logout, signOut: logout, loading, role, isAdmin, isPM, isGIP, canEdit, canApprove }}>
       {children}
     </AuthContext.Provider>
   );

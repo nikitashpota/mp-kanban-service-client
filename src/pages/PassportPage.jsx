@@ -117,7 +117,7 @@ function HeaderModal({ data, onSave, onClose }) {
 export default function PassportPage() {
   const { id } = useParams();
   const nav = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, canApprove } = useAuth();
 
   const [project, setProject] = useState(null);
   const [passport, setPassport] = useState(null);
@@ -222,7 +222,7 @@ export default function PassportPage() {
           <span className="text-gray-200">/</span>
           <h1 className="text-lg font-bold text-gray-900">Паспорт объекта</h1>
         </div>
-        {isAdmin && (
+        {canEdit && (
           <div className="flex gap-2">
             <button onClick={() => setHeaderModal(true)} className="px-3 py-1.5 text-xs font-medium rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all border border-gray-200">
               Редактировать реквизиты
@@ -264,7 +264,7 @@ export default function PassportPage() {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm mb-5 overflow-hidden">
         <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
           <span className="text-sm font-semibold text-gray-800">Этапы проектирования</span>
-          {isAdmin && stages.length > 0 && (
+          {canEdit && stages.length > 0 && (
             <span className="text-xs text-gray-400">Кликните на ячейку для редактирования</span>
           )}
         </div>
@@ -273,7 +273,7 @@ export default function PassportPage() {
           <div className="py-14 text-center text-sm text-gray-400">
             <div className="text-3xl mb-2">📋</div>
             Этапы не созданы
-            {isAdmin && (
+            {canEdit && (
               <div className="mt-3">
                 <button onClick={handleInit} className="px-4 py-2 text-sm font-semibold rounded-xl bg-brand-500 hover:bg-brand-600 text-white shadow-sm transition-all">
                   Создать паспорт (загрузить этапы)
@@ -310,14 +310,14 @@ export default function PassportPage() {
 
                       {/* Stage name */}
                       <td className={`${tdBase} font-semibold text-gray-800 ${isSubOnly ? 'pl-6' : ''}`}>
-                        {isAdmin
+                        {canEdit
                           ? <EditCell value={s.stage_name} onSave={v => handlePatchStage(s.id, 'stage_name', v)} placeholder="—" />
                           : (s.stage_name || '')}
                       </td>
 
                       {/* Sub-stage */}
                       <td className={`${tdBase} text-gray-600`}>
-                        {isAdmin
+                        {canEdit
                           ? <EditCell value={s.sub_stage_name} onSave={v => handlePatchStage(s.id, 'sub_stage_name', v)} placeholder="—" />
                           : (s.sub_stage_name || '')}
                       </td>
@@ -325,7 +325,7 @@ export default function PassportPage() {
                       {/* Readiness */}
                       <td className={`${tdBase} text-center`}>
                         <div className="flex items-center justify-center">
-                          {isAdmin ? (
+                          {canEdit ? (
                             <EditCell
                               value={s.readiness ? String(s.readiness) : ''}
                               type="number"
@@ -346,7 +346,7 @@ export default function PassportPage() {
                       {/* Dates */}
                       {['deadline_contract', 'deadline_directive', 'execution_planned', 'execution_actual'].map(field => (
                         <td key={field} className={`${tdBase} text-center`}>
-                          {isAdmin
+                          {canEdit
                             ? <EditCell value={s[field]} type="date" onSave={v => handlePatchStage(s.id, field, v)} placeholder="—" cls="text-center text-xs" />
                             : <span className="text-gray-600">{fmtDate(s[field])}</span>}
                         </td>
@@ -354,14 +354,14 @@ export default function PassportPage() {
 
                       {/* Responsible */}
                       <td className={`${tdBase}`}>
-                        {isAdmin
+                        {canEdit
                           ? <EditCell value={s.responsible} onSave={v => handlePatchStage(s.id, 'responsible', v)} placeholder="—" />
                           : (s.responsible || <span className="text-gray-300">—</span>)}
                       </td>
 
                       {/* Note */}
                       <td className={`${tdBase}`}>
-                        {isAdmin
+                        {canEdit
                           ? <EditCell value={s.note} onSave={v => handlePatchStage(s.id, 'note', v)} placeholder="—" />
                           : (s.note || <span className="text-gray-300">—</span>)}
                       </td>
@@ -378,7 +378,7 @@ export default function PassportPage() {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm mb-5 overflow-hidden">
         <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
           <span className="text-sm font-semibold text-gray-800">Проблемные вопросы</span>
-          {isAdmin && (
+          {canEdit && (
             <div className="flex gap-2">
               {issuesDirty && (
                 <button onClick={handleSaveIssues} disabled={savingIssues} className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-brand-500 hover:bg-brand-600 text-white shadow-sm transition-all">
@@ -397,7 +397,7 @@ export default function PassportPage() {
               <th className={thCls} style={{ width: 36 }}>№</th>
               <th className={`${thCls} text-left`}>Проблемный вопрос</th>
               <th className={`${thCls} text-left`}>Необходимые решения</th>
-              {isAdmin && <th className={thCls} style={{ width: 40 }} />}
+              {canEdit && <th className={thCls} style={{ width: 40 }} />}
             </tr>
           </thead>
           <tbody>
@@ -405,7 +405,7 @@ export default function PassportPage() {
               <tr key={i} className="hover:bg-gray-50/50">
                 <td className={`${tdBase} text-center text-gray-400`}>{i + 1}</td>
                 <td className={tdBase}>
-                  {isAdmin ? (
+                  {canEdit ? (
                     <textarea
                       className="w-full text-xs px-2 py-1 border-0 focus:outline-none bg-transparent resize-none min-h-[48px]"
                       value={iss.problem || ''}
@@ -415,7 +415,7 @@ export default function PassportPage() {
                   ) : <span className="text-sm text-gray-700">{iss.problem}</span>}
                 </td>
                 <td className={tdBase}>
-                  {isAdmin ? (
+                  {canEdit ? (
                     <textarea
                       className="w-full text-xs px-2 py-1 border-0 focus:outline-none bg-transparent resize-none min-h-[48px]"
                       value={iss.solution || ''}
@@ -424,7 +424,7 @@ export default function PassportPage() {
                     />
                   ) : <span className="text-sm text-gray-700">{iss.solution}</span>}
                 </td>
-                {isAdmin && (
+                {canEdit && (
                   <td className={`${tdBase} text-center`}>
                     <button onClick={() => removeIssueRow(i)} className="text-gray-300 hover:text-red-500 transition-colors text-sm">✕</button>
                   </td>
