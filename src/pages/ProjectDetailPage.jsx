@@ -4,13 +4,22 @@ import {
   getProject, uploadPhotos, deletePhoto, setPhotoType,
   addContact, updateContact, deleteContact,
   saveNetworks, savePassportHeader, patchPassportStage,
-  savePassportIssues, initPassportV2, deleteProject, photoUrl
+  savePassportIssues, initPassportV2, importPassportXlsx, deleteProject, photoUrl
 } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 
 // ── Utils ─────────────────────────────────────────────────────
 const fmtDate = d => d ? new Date(d).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 const toInputDate = d => d ? d.slice(0, 10) : '';
+
+const KANBAN_STATUS_COLORS = {
+  done:             { bg: '#f0fdf4', border: '#bbf7d0', text: '#15803d' },
+  not_provided:     { bg: '#fef2f2', border: '#fecaca', text: '#dc2626' },
+  needs_correction: { bg: '#fffbeb', border: '#fed7aa', text: '#d97706' },
+  in_progress:      { bg: '#eff6ff', border: '#bfdbfe', text: '#2563eb' },
+  not_required:     { bg: '#f9fafb', border: '#e5e7eb', text: '#6b7280' },
+  developed:        { bg: '#ecfeff', border: '#a5f3fc', text: '#0891b2' },
+};
 
 const readinessCls = v => {
   const n = parseInt(v) || 0;
@@ -226,6 +235,21 @@ export default function ProjectDetailPage() {
   const handleInitPassport = async () => {
     try { await initPassportV2(id); flash('Этапы созданы'); load(); }
     catch (err) { flash(err.response?.data?.error || 'Ошибка', 'error'); }
+  };
+
+  const importRef = useRef();
+  const handleImportXlsx = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    try {
+      flash('Импортируем...', 'info');
+      const result = await importPassportXlsx(id, file);
+      flash(`${result.message}${result.skipped > 0 ? ` (пропущено: ${result.skipped})` : ''}`, 'success');
+      load();
+    } catch (err) {
+      flash(err.response?.data?.error || 'Ошибка импорта', 'error');
+    }
   };
   const handlePatchStage = async (stageId, field, value) => {
     try {
@@ -477,9 +501,18 @@ export default function ProjectDetailPage() {
               <span className="text-sm font-semibold text-gray-800">Этапы проектирования</span>
               <div className="flex items-center gap-2">
                 {isAdmin && <span className="text-xs text-gray-400">Кликните ячейку для редактирования</span>}
+                {isAdmin && (
+                  <>
+                    <input ref={importRef} type="file" accept=".xlsx" className="hidden" onChange={handleImportXlsx} />
+                    <button onClick={() => importRef.current?.click()}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 shadow-sm transition-all">
+                      ⬆ Импорт XLSX
+                    </button>
+                  </>
+                )}
                 {isAdmin && passportStages.length === 0 && (
                   <button onClick={handleInitPassport} className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-brand-500 hover:bg-brand-600 text-white shadow-sm transition-all">
-                    Создать все 29 этапов
+                    Создать все этапы
                   </button>
                 )}
               </div>
@@ -511,23 +544,113 @@ export default function ProjectDetailPage() {
                       // Precompute which rows are documentation sub-rows
                       const docNums = new Set(['26', '27']);
                       const NON_NUMERIC_NUMS = new Set(['bzu','trans','shopr','kvart','snos','rd_zero']);
+                      // Survey rows that show 1эт/2эт (deadline_directive / execution_actual)
+                      const SURVEY_NUMS = new Set(['5','6','7','8','9']);
                       let lastParentNum = null;
                       const rowMeta = passportStages.map(s => {
                         if (s.stage_num) lastParentNum = s.stage_num;
                         const isCountRow = docNums.has(s.stage_num) || (!s.stage_num && docNums.has(lastParentNum));
-                        return { isCountRow };
+                        const isSurveyRow = SURVEY_NUMS.has(s.stage_num);
+                        return { isCountRow, isSurveyRow };
                       });
 
-                      return passportStages.map((s, idx) => {
-                        const { isCountRow } = rowMeta[idx];
+                      const rows = [];
+                      passportStages.forEach((s, idx) => {
+                        const { isCountRow, isSurveyRow } = rowMeta[idx];
                         const isSubRow = !s.stage_num && !s.stage_name;
                         const isSlot2 = s.kanban_slot === 2;
                         const displayNum = s.stage_num && !NON_NUMERIC_NUMS.has(s.stage_num) ? s.stage_num : '';
                         const planDate   = isSlot2 ? s.parent_planned_2 : s.execution_planned;
                         const actualDate = isSlot2 ? s.parent_actual_2  : s.execution_actual;
                         const rd = parseInt(s.readiness) || 0;
+                        const statusKey = isSlot2 ? s.parent_kanban_status_2 : s.kanban_status;
+                        const statusColor = KANBAN_STATUS_COLORS[statusKey];
+                        const dateCellStyle = statusColor
+                          ? { background: statusColor.bg, borderColor: statusColor.border }
+                          : {};
 
-                        return (
+                        if (isSurveyRow) {
+                          const sc = KANBAN_STATUS_COLORS[s.kanban_status];
+                          const scStyle = sc ? { background: sc.bg, borderColor: sc.border } : {};
+
+                          rows.push(
+                            // Main row — срок (договор/директивный), без разбивки на этапы
+                            <tr key={`${s.id}-main`} className="hover:bg-gray-50/30">
+                              <td className={`${tdCls} text-center text-gray-400 font-mono text-[11px]`}>{displayNum}</td>
+                              <td className={`${tdCls} font-semibold text-gray-800 text-xs`}>
+                                {isAdmin ? <EC value={s.stage_name} onSave={v => handlePatchStage(s.id, 'stage_name', v)} placeholder="—" /> : (s.stage_name || '')}
+                              </td>
+                              <td className={`${tdCls} text-gray-500 text-xs`}>
+                                {isAdmin ? <EC value={s.sub_stage_name} onSave={v => handlePatchStage(s.id, 'sub_stage_name', v)} placeholder="—" /> : (s.sub_stage_name || '')}
+                              </td>
+                              <td className={`${tdCls} text-center`}><span className="text-gray-300 text-xs">—</span></td>
+                              {/* Срок — единый, без разбивки */}
+                              <td className={`${tdCls} text-center`} style={{ minWidth: 90 }}>
+                                <div className="flex flex-col gap-0.5">
+                                  {isAdmin
+                                    ? <><EC value={s.deadline_contract} type="date" onSave={v => handlePatchStage(s.id, 'deadline_contract', v)} placeholder="дог." /><EC value={s.deadline_directive} type="date" onSave={v => handlePatchStage(s.id, 'deadline_directive', v)} placeholder="дир." /></>
+                                    : <><span className="text-xs text-gray-600">{fmtDate(s.deadline_contract) || '—'}</span><span className="text-xs text-gray-400">{fmtDate(s.deadline_directive)}</span></>}
+                                </div>
+                              </td>
+                              <td className={`${tdCls} text-center`} style={{ minWidth: 90 }}><span className="text-gray-200 text-xs">—</span></td>
+                              <td className={tdCls}>
+                                {isAdmin ? <EC value={s.responsible} onSave={v => handlePatchStage(s.id, 'responsible', v)} placeholder="—" /> : (s.responsible || <span className="text-gray-300 text-xs">—</span>)}
+                              </td>
+                              <td className={tdCls}>
+                                {isAdmin ? <EC value={s.note} onSave={v => handlePatchStage(s.id, 'note', v)} placeholder="—" /> : (s.note || <span className="text-gray-300 text-xs">—</span>)}
+                              </td>
+                            </tr>,
+
+                            // 1й этап — план/факт
+                            <tr key={`${s.id}-e1`} className="bg-gray-50/40 hover:bg-gray-50">
+                              <td className={`${tdCls} text-center text-gray-300 text-[10px]`}></td>
+                              <td className={`${tdCls} text-xs text-gray-400`}></td>
+                              <td className={`${tdCls} text-gray-500 text-xs`}>
+                                <span className="text-[10px] font-semibold text-gray-400 mr-1">1эт</span>
+                              </td>
+                              <td className={`${tdCls} text-center`}>
+                                <div className="flex items-center justify-center gap-0.5">
+                                  {isAdmin && <EC value={rd > 0 ? String(rd) : ''} type="number" onSave={v => handlePatchStage(s.id, 'readiness', v)} placeholder="%" />}
+                                  {rd > 0 && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${readinessCls(rd)}`}>{rd}%</span>}
+                                  {!isAdmin && !rd && <span className="text-gray-300 text-xs">—</span>}
+                                </div>
+                              </td>
+                              <td className={`${tdCls} text-center`} style={{ minWidth: 90 }}><span className="text-gray-200 text-xs">—</span></td>
+                              <td className={`${tdCls} text-center`} style={{ minWidth: 90, ...scStyle }}>
+                                <div className="flex flex-col gap-0.5">
+                                  {isAdmin
+                                    ? <><EC value={s.execution_planned} type="date" onSave={v => handlePatchStage(s.id, 'execution_planned', v)} placeholder="план" /><EC value={s.execution_actual} type="date" onSave={v => handlePatchStage(s.id, 'execution_actual', v)} placeholder="факт" /></>
+                                    : <><span className="text-xs text-gray-500">{fmtDate(s.execution_planned) || '—'}</span>{s.execution_actual && <span className="text-xs font-semibold px-1 rounded" style={sc ? { color: sc.text } : {}}>{fmtDate(s.execution_actual)}</span>}</>}
+                                </div>
+                              </td>
+                              <td className={tdCls}></td>
+                              <td className={tdCls}></td>
+                            </tr>,
+
+                            // 2й этап — план/факт
+                            <tr key={`${s.id}-e2`} className="bg-gray-50/40 hover:bg-gray-50">
+                              <td className={`${tdCls} text-center text-gray-300 text-[10px]`}></td>
+                              <td className={`${tdCls} text-xs text-gray-400`}></td>
+                              <td className={`${tdCls} text-gray-500 text-xs`}>
+                                <span className="text-[10px] font-semibold text-gray-400 mr-1">2эт</span>
+                              </td>
+                              <td className={`${tdCls} text-center`}><span className="text-gray-300 text-xs">—</span></td>
+                              <td className={`${tdCls} text-center`} style={{ minWidth: 90 }}><span className="text-gray-200 text-xs">—</span></td>
+                              <td className={`${tdCls} text-center`} style={{ minWidth: 90, ...scStyle }}>
+                                <div className="flex flex-col gap-0.5">
+                                  {isAdmin
+                                    ? <><EC value={s.execution_planned_2} type="date" onSave={v => handlePatchStage(s.id, 'execution_planned_2', v)} placeholder="план" /><EC value={s.execution_actual_2} type="date" onSave={v => handlePatchStage(s.id, 'execution_actual_2', v)} placeholder="факт" /></>
+                                    : <><span className="text-xs text-gray-500">{fmtDate(s.execution_planned_2) || '—'}</span>{s.execution_actual_2 && <span className="text-xs font-semibold px-1 rounded" style={sc ? { color: sc.text } : {}}>{fmtDate(s.execution_actual_2)}</span>}</>}
+                                </div>
+                              </td>
+                              <td className={tdCls}></td>
+                              <td className={tdCls}></td>
+                            </tr>
+                          );
+                          return;
+                        }
+
+                        rows.push(
                           <tr key={s.id} className={`transition-colors ${isSubRow ? 'bg-gray-50/60 hover:bg-gray-50' : 'hover:bg-gray-50/30'} ${isSlot2 ? 'bg-blue-50/20' : ''}`}>
                             <td className={`${tdCls} text-center text-gray-400 font-mono text-[11px]`}>{displayNum}</td>
                             <td className={`${tdCls} font-semibold text-gray-800 text-xs`}>
@@ -552,18 +675,18 @@ export default function ProjectDetailPage() {
                                     {!isAdmin && !rd && <span className="text-gray-300 text-xs">—</span>}
                                   </div>
                                 </td>
-                                <td className={`${tdCls} text-center`} style={{ minWidth: 90 }}>
+                                <td className={`${tdCls} text-center`} style={{ minWidth: 90, ...dateCellStyle }}>
                                   <div className="flex flex-col gap-0.5">
                                     {isAdmin && !isSlot2
                                       ? <><EC value={s.deadline_contract} type="date" onSave={v => handlePatchStage(s.id, 'deadline_contract', v)} placeholder="дог." /><EC value={s.deadline_directive} type="date" onSave={v => handlePatchStage(s.id, 'deadline_directive', v)} placeholder="дир." /></>
                                       : <><span className="text-xs text-gray-600">{fmtDate(s.deadline_contract) || (isSlot2 ? '' : '—')}</span><span className="text-xs text-gray-400">{fmtDate(s.deadline_directive)}</span></>}
                                   </div>
                                 </td>
-                                <td className={`${tdCls} text-center`} style={{ minWidth: 90 }}>
+                                <td className={`${tdCls} text-center`} style={{ minWidth: 90, ...dateCellStyle }}>
                                   <div className="flex flex-col gap-0.5">
                                     {isAdmin
                                       ? <><EC value={planDate} type="date" onSave={v => handlePatchStage(s.id, 'execution_planned', v)} placeholder="план" /><EC value={actualDate} type="date" onSave={v => handlePatchStage(s.id, 'execution_actual', v)} placeholder="факт" /></>
-                                      : <><span className="text-xs text-gray-500">{fmtDate(planDate) || '—'}</span>{actualDate && <span className="text-xs font-semibold text-green-700 bg-green-50 px-1 rounded">{fmtDate(actualDate)}</span>}</>}
+                                      : <><span className="text-xs" style={{ color: '#6b7280' }}>{fmtDate(planDate) || '—'}</span>{actualDate && <span className="text-xs font-semibold px-1 rounded" style={statusColor ? { color: statusColor.text } : { color: '#15803d', background: '#f0fdf4' }}>{fmtDate(actualDate)}</span>}</>}
                                   </div>
                                 </td>
                               </>
@@ -578,6 +701,7 @@ export default function ProjectDetailPage() {
                           </tr>
                         );
                       });
+                      return rows;
                     })()}
                   </tbody>
                 </table>

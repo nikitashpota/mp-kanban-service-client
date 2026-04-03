@@ -61,7 +61,7 @@ export default function ProjectFormPage() {
         customer: pp.customer||'', functional_customer: pp.functional_customer||'',
         general_designer: pp.general_designer||'', developer: pp.developer||'',
         aip_cost: pp.aip_cost||'', passport_completion_date: pp.completion_date||'',
-        contract_pir: pp.contract_pir||'', passport_completion_date: pp.completion_date||'',
+        contract_pir: pp.contract_pir||'',
       });
     }).finally(() => setLoading(false));
   }, [id, isEdit]);

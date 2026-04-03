@@ -85,6 +85,10 @@ export const initPassport = (projectId) =>
   api.post(`/passport/${projectId}/init`).then(r => r.data);
 export const initPassportV2 = (projectId) =>
   api.post(`/passport/${projectId}/init-v2`).then(r => r.data);
+export const importPassportXlsx = (projectId, file) => {
+  const fd = new FormData(); fd.append('file', file);
+  return api.post(`/import/${projectId}/xlsx`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
+};
 
 // ── Analytics ─────────────────────────────────────────────────
 export const getAnalytics = (typeId) =>
