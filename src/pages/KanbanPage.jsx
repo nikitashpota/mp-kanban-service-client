@@ -295,17 +295,17 @@ function useDualCell(stage, onUpdate, projectId, stageNum, date1Field = 'executi
   const date2 = date2Field === 'execution_actual_2' ? safeStage.execution_actual_2 : safeStage[date2Field];
 
   const Picker = ({ which, currentKey }) => (
-    <div className="absolute top-0 left-full z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-52 ml-1">
+    <div className="absolute top-0 left-full z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-52 ml-1 text-left whitespace-nowrap">
       {STATUSES.map(s => (
         <button key={s.key} onClick={() => pickStatus(which, s.key)}
-          className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 ${currentKey === s.key ? 'font-semibold' : ''}`}>
+          className={`w-full text-left flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 ${currentKey === s.key ? 'font-semibold' : ''}`}>
           <StatusIcon type={s.key} size={14} />
           <span className={s.text}>{s.label}</span>
           {currentKey === s.key && <span className="ml-auto text-gray-300">✓</span>}
         </button>
       ))}
       <div className="border-t border-gray-100 mt-1 pt-1">
-        <button onClick={() => pickStatus(which, null)} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50">✕ Очистить</button>
+        <button onClick={() => pickStatus(which, null)} className="w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50">✕ Очистить</button>
       </div>
     </div>
   );
@@ -355,10 +355,10 @@ function DualStatusCell({ stage, projectId, stageNum, isAdmin, onUpdate, onReloa
       </div>
       {open1 && <Picker which={1} currentKey={stage?.kanban_status} />}
       {open2 && (
-        <div className="absolute bottom-0 left-full z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-52 ml-1">
+        <div className="absolute bottom-0 left-full z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-52 ml-1 text-left whitespace-nowrap">
           {STATUSES.map(s => (
             <button key={s.key} onClick={async () => { setOpen2(false); await onUpdate(stage?.id, { kanban_status_2: s.key }, projectId, stageNum); }}
-              className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 ${safeStage.kanban_status_2 === s.key ? 'font-semibold' : ''}`}>
+              className={`w-full text-left flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 ${safeStage.kanban_status_2 === s.key ? 'font-semibold' : ''}`}>
               <StatusIcon type={s.key} size={14} /><span className={s.text}>{s.label}</span>
               {safeStage.kanban_status_2 === s.key && <span className="ml-auto text-gray-300">✓</span>}
             </button>
@@ -402,10 +402,10 @@ function DualSimpleCell({ stage, projectId, stageNum, isAdmin, onUpdate, onReloa
       </div>
       {open1 && <Picker which={1} currentKey={safeStage.kanban_status} />}
       {open2 && (
-        <div className="absolute bottom-0 left-full z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-52 ml-1">
+        <div className="absolute bottom-0 left-full z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-52 ml-1 text-left whitespace-nowrap">
           {STATUSES.map(s => (
             <button key={s.key} onClick={async () => { setOpen2(false); await onUpdate(stage?.id, { kanban_status_2: s.key }, projectId, stageNum); }}
-              className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 ${safeStage.kanban_status_2 === s.key ? 'font-semibold' : ''}`}>
+              className={`w-full text-left flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 ${safeStage.kanban_status_2 === s.key ? 'font-semibold' : ''}`}>
               <StatusIcon type={s.key} size={14} /><span className={s.text}>{s.label}</span>
               {safeStage.kanban_status_2 === s.key && <span className="ml-auto text-gray-300">✓</span>}
             </button>
@@ -489,10 +489,10 @@ function StatusCell({ stage, projectId, stageNum, isAdmin, onUpdate, onReload, c
         </div>
 
         {open && (
-          <div className="absolute top-full left-0 z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-52" style={{ minWidth: 200 }}>
+          <div className="absolute top-full left-0 z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-52 whitespace-nowrap" style={{ minWidth: 200 }}>
             {STATUSES.map(s => (
               <button key={s.key} onClick={() => handleStatusPick(s.key)}
-                className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${stage?.kanban_status === s.key ? 'font-semibold' : ''}`}>
+                className={`w-full text-left flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 transition-colors ${stage?.kanban_status === s.key ? 'font-semibold' : ''}`}>
                 <StatusIcon type={s.key} size={16} />
                 <span className={s.text}>{s.label}</span>
                 {stage?.kanban_status === s.key && <span className="ml-auto text-gray-300">✓</span>}
