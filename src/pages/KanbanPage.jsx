@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   getKanban, patchKanbanStage,
@@ -106,8 +107,44 @@ function fmtDate(d) {
 
 // ── Pending chip — показывает 🕐 и кнопки утверждения ─────────
 function PendingChip({ pendingDate, pendingByName, stageId, slot, canApprove, onDone }) {
+  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [pos, setPos] = useState(null);
+  const btnRef = useRef();
+  const popRef = useRef();
+
+  const updatePos = () => {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    setPos({ top: r.top, left: r.left + r.width / 2 });
+  };
+
+  // Закрытие по клику вне
+  useEffect(() => {
+    if (!open) return;
+    const onMouseDown = e => {
+      if (
+        btnRef.current && !btnRef.current.contains(e.target) &&
+        popRef.current && !popRef.current.contains(e.target)
+      ) setOpen(false);
+    };
+    // Обновляем позицию при любом скролле (канбан, окно)
+    const onScroll = () => updatePos();
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('scroll', onScroll, true); // capture — ловим любой скролл
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('scroll', onScroll, true);
+    };
+  }, [open]);
+
   if (!pendingDate) return null;
+
+  const handleOpen = e => {
+    e.stopPropagation();
+    updatePos();
+    setOpen(o => !o);
+  };
 
   const handle = async (action, e) => {
     e.stopPropagation();
@@ -115,51 +152,113 @@ function PendingChip({ pendingDate, pendingByName, stageId, slot, canApprove, on
     try {
       if (action === 'approve') await approveDate(stageId, slot);
       else await rejectDate(stageId, slot);
+      setOpen(false);
       onDone?.();
     } finally { setLoading(false); }
   };
 
   const shortName = pendingByName
-    ? pendingByName.split(' ').filter(Boolean).slice(0, 2).join(' ')
+    ? (() => {
+        const parts = pendingByName.trim().split(/\s+/);
+        if (parts.length === 1) return parts[0];
+        const [last, first, mid] = parts;
+        return `${last} ${first?.[0] || ''}.${mid?.[0] ? mid[0] + '.' : ''}`;
+      })()
     : 'ГИП';
 
-  return (
+  const popover = pos && open && createPortal(
     <div
-      className="pending-chip mt-1.5 w-full bg-amber-50 border border-amber-300 rounded-lg p-1.5 flex flex-col items-center gap-1 shadow-sm"
-      title={`Предложено: ${fmtDate(pendingDate)} — ${pendingByName || 'ГИП'}. Нажмите ✓ чтобы утвердить`}
+      ref={popRef}
       onClick={e => e.stopPropagation()}
+      style={{
+        position: 'fixed',
+        top: pos.top - 8,
+        left: pos.left,
+        transform: 'translate(-50%, -100%)',
+        zIndex: 99999,
+        pointerEvents: 'auto',
+      }}
     >
-      {/* Иконка + дата — центрированы */}
-      <div className="flex items-center justify-center gap-1 w-full">
-        <span className="text-amber-500 leading-none flex-shrink-0">🕐</span>
-        <span className="text-[10px] font-bold text-amber-800 leading-none whitespace-nowrap">{fmtDate(pendingDate)}</span>
-      </div>
-      {/* Автор */}
-      <div className="text-[8px] text-gray-500 leading-none text-center w-full truncate px-0.5">{shortName}</div>
-      {/* Кнопки — только для РП */}
-      {canApprove ? (
-        <div className="flex gap-1 w-full mt-0.5">
-          <button
-            disabled={loading}
-            onClick={e => handle('approve', e)}
-            className="flex-1 text-[9px] font-bold bg-green-500 text-white rounded-md py-1 hover:bg-green-600 disabled:opacity-50 transition-all leading-none"
-            title="Утвердить дату">
-            ✓
-          </button>
-          <button
-            disabled={loading}
-            onClick={e => handle('reject', e)}
-            className="flex-1 text-[9px] font-bold bg-white border border-red-300 text-red-500 rounded-md py-1 hover:bg-red-50 disabled:opacity-50 transition-all leading-none"
-            title="Отклонить дату">
-            ✕
-          </button>
+      <div style={{
+        background: 'white',
+        border: '1.5px solid #f59e0b',
+        borderRadius: 12,
+        padding: '10px 12px',
+        width: 176,
+        boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
+        position: 'relative',
+      }}>
+        <div style={{
+          position: 'absolute', left: '50%',
+          transform: 'translateX(-50%) rotate(45deg)',
+          bottom: -7, width: 12, height: 12,
+          background: 'white',
+          borderRight: '1.5px solid #f59e0b',
+          borderBottom: '1.5px solid #f59e0b',
+        }} />
+        <div style={{ fontSize: 9, fontWeight: 700, color: '#b45309', letterSpacing: '0.06em', textTransform: 'uppercase', textAlign: 'center', marginBottom: 8 }}>
+          Ожидает утверждения
         </div>
-      ) : (
-        <div className="text-[8px] text-amber-600 text-center leading-tight w-full">ожидает РП</div>
-      )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+          <span style={{ fontSize: 11, color: '#6b7280' }}>Дата</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#111827' }}>{fmtDate(pendingDate)}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <span style={{ fontSize: 11, color: '#6b7280' }}>ГИП</span>
+          <span style={{ fontSize: 11, fontWeight: 500, color: '#374151', maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shortName}</span>
+        </div>
+        {canApprove ? (
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              disabled={loading}
+              onClick={e => handle('approve', e)}
+              style={{ flex: 1, background: '#22c55e', color: 'white', border: 'none', borderRadius: 8, padding: '7px 0', fontSize: 11, fontWeight: 600, cursor: 'pointer', opacity: loading ? 0.5 : 1 }}
+            >
+              {loading ? '…' : 'Принять'}
+            </button>
+            <button
+              disabled={loading}
+              onClick={e => handle('reject', e)}
+              style={{ flex: 1, background: 'white', color: '#ef4444', border: '1px solid #fca5a5', borderRadius: 8, padding: '7px 0', fontSize: 11, fontWeight: 600, cursor: 'pointer', opacity: loading ? 0.5 : 1 }}
+            >
+              {loading ? '…' : 'Отклонить'}
+            </button>
+          </div>
+        ) : (
+          <div style={{ fontSize: 10, color: '#d97706', textAlign: 'center', fontWeight: 500 }}>ожидает решения РП</div>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+
+  return (
+    <div className="pending-chip inline-flex items-center justify-center" onClick={e => e.stopPropagation()}>
+      <button
+        ref={btnRef}
+        onClick={handleOpen}
+        style={{ padding: '6px', margin: '-6px', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        title={`Предложено: ${fmtDate(pendingDate)} — ${pendingByName || 'ГИП'}`}
+      >
+        <span className={`w-5 h-5 rounded-full flex items-center justify-center transition-all shadow-sm border flex-shrink-0 ${
+          open
+            ? 'bg-amber-500 border-amber-500 text-white'
+            : 'bg-amber-50 border-amber-400 text-amber-500 hover:bg-amber-100'
+        }`}>
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.8"/>
+            <path d="M8 4.5V8l2.5 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </span>
+      </button>
+      {popover}
     </div>
   );
 }
+
+
+
+
 
 // ── Shared dual cell logic hook ───────────────────────────────
 function useDualCell(stage, onUpdate, projectId, stageNum, date1Field = 'execution_actual', date2Field = 'execution_actual_2') {
@@ -599,7 +698,7 @@ export default function KanbanPage() {
     setDashFilter(null);
   };
 
-  // Считаем pending только в рамках текущего типа (для отображения на бейдже)
+  // Pending в рамках текущей вкладки типа
   const totalPending = rows.filter(p =>
     !filterType || String(p.project_type_id) === filterType
   ).reduce((acc, p) => {
@@ -610,20 +709,12 @@ export default function KanbanPage() {
     return acc;
   }, 0);
 
-  // Глобальный счётчик по всем типам (для активного фильтра)
-  const totalPendingAll = rows.reduce((acc, p) => {
-    Object.values(p.stages || {}).forEach(s => {
-      if (s.execution_actual_pending) acc++;
-      if (s.execution_actual_pending_2) acc++;
-    });
-    return acc;
-  }, 0);
-
   let visible = sortProjects(
     rows.filter(p => {
       if (dashFilter) return dashFilter.ids.includes(p.id);
-      // Pending-only filter: показываем ВСЕ проекты с ожиданием, независимо от типа
+      // Pending-only filter: только проекты текущей вкладки с ожиданием
       if (showPendingOnly) {
+        if (filterType && String(p.project_type_id) !== filterType) return false;
         return Object.values(p.stages || {}).some(
           s => s.execution_actual_pending || s.execution_actual_pending_2
         );
@@ -700,7 +791,7 @@ export default function KanbanPage() {
           <div className="flex items-center gap-3 mt-0.5">
             <p className="text-sm text-gray-400">{visible.length} объект(ов)</p>
             {/* Pending badge — кликабельный фильтр для PM/admin */}
-            {canApprove && totalPendingAll > 0 && (
+            {canApprove && totalPending > 0 && (
               <button
                 onClick={() => setShowPendingOnly(p => !p)}
                 className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all ${
@@ -708,7 +799,7 @@ export default function KanbanPage() {
                     ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
                     : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
                 }`}>
-                🕐 {totalPendingAll} на утверждении
+                🕐 {totalPending} на утверждении
                 {showPendingOnly && <span className="ml-1.5 text-[10px] opacity-80">× сбросить</span>}
               </button>
             )}
@@ -722,7 +813,7 @@ export default function KanbanPage() {
           {showPendingOnly && !dashFilter && (
             <div className="flex items-center gap-2 mt-1.5">
               <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-amber-500 px-2.5 py-1 rounded-full">
-                🕐 Ожидают утверждения — все типы
+                🕐 Только ожидающие утверждения
               </span>
               <button onClick={() => setShowPendingOnly(false)} className="text-xs text-gray-400 hover:text-gray-700 transition-colors">× сбросить</button>
             </div>
@@ -776,7 +867,7 @@ export default function KanbanPage() {
             <span>{s.label}</span>
           </div>
         ))}
-        {canApprove && totalPendingAll > 0 && (
+        {canApprove && totalPending > 0 && (
           <div className="flex items-center gap-1.5 text-xs text-amber-600 font-medium ml-2 pl-2 border-l border-gray-200">
             <span>🕐</span>
             <span>Нажмите на дату в ячейке для утверждения</span>
