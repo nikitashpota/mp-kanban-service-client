@@ -25,8 +25,9 @@ export default function ProjectCard({ project }) {
       {/* Body */}
       <div className="p-4">
         <h3 className="font-semibold text-gray-900 text-[15px] leading-snug mb-1">{project.name}</h3>
+        {/* Адрес — полностью, без обрезания */}
         {project.address && (
-          <p className="text-xs text-gray-400 mb-2 truncate">📍 {project.address}</p>
+          <p className="text-xs text-gray-400 mb-2 leading-snug">📍 {project.address}</p>
         )}
         {project.type_name && (
           <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full text-white mb-2"

@@ -13,7 +13,8 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = usePersistentState('cards_filterType', '');
   const [sortValue, setSortValue] = usePersistentState('cards_sort', 'name_asc');
-  const { isAdmin, canApprove } = useAuth();
+  // canEdit = isGIP+, canApprove = isPM+, isAdmin = admin only
+  const { isAdmin, canApprove, canEdit } = useAuth();
   const nav = useNavigate();
 
   useEffect(() => {
@@ -21,7 +22,6 @@ export default function ProjectsPage() {
       .then(([p, t]) => {
         setProjects(p);
         setTypes(t);
-        // Auto-select first type, or reset if saved filterType no longer exists
         setFilterType(prev => {
           if (!prev && t.length > 0) return String(t[0].id);
           if (prev && !t.find(x => String(x.id) === prev) && t.length > 0) return String(t[0].id);
@@ -42,7 +42,7 @@ export default function ProjectsPage() {
 
   return (
     <>
-      {/* ── TYPE TABS — визуально обособлены сверху ── */}
+      {/* ── TYPE TABS ── */}
       {types.length > 0 && (
         <div className="mb-5">
           <div className="flex items-center gap-2 flex-wrap">
@@ -70,8 +70,9 @@ export default function ProjectsPage() {
             value={search} onChange={e => setSearch(e.target.value)}
           />
           <SortSelect value={sortValue} onChange={setSortValue} />
+          {/* Кнопка "Добавить" — для pm, gip, admin */}
           {canEdit && (
-            <button onClick={() => nav('/admin/projects/new')}
+            <button onClick={() => nav('/projects/new')}
               className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-[#C0392B] hover:bg-[#96281B] text-white shadow-sm transition-all">
               + Добавить
             </button>

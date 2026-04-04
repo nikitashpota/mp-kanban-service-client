@@ -35,7 +35,7 @@ function TypeGroup({ typeName, typeColor, projects, defaultOpen = false }) {
 }
 
 export default function Sidebar({ projects = [] }) {
-  const { user, signOut, isAdmin } = useAuth();
+  const { user, signOut, isAdmin, canEdit } = useAuth();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = usePersistentState('sidebar_collapsed', false);
 
@@ -52,10 +52,17 @@ export default function Sidebar({ projects = [] }) {
   const seen = new Map();
   projects.forEach(p => {
     const key = p.project_type_id || '__none__';
-    if (!seen.has(key)) { seen.set(key, { typeId: p.project_type_id, typeName: p.type_name || 'Без типа', typeColor: p.type_color || null, projects: [] }); groups.push(seen.get(key)); }
+    if (!seen.has(key)) {
+      seen.set(key, { typeId: p.project_type_id, typeName: p.type_name || 'Без типа', typeColor: p.type_color || null, projects: [] });
+      groups.push(seen.get(key));
+    }
     seen.get(key).projects.push(p);
   });
-  groups.sort((a, b) => { if (!a.typeId && b.typeId) return 1; if (a.typeId && !b.typeId) return -1; return a.typeName.localeCompare(b.typeName, 'ru'); });
+  groups.sort((a, b) => {
+    if (!a.typeId && b.typeId) return 1;
+    if (a.typeId && !b.typeId) return -1;
+    return a.typeName.localeCompare(b.typeName, 'ru');
+  });
 
   if (collapsed) {
     return (
@@ -81,7 +88,7 @@ export default function Sidebar({ projects = [] }) {
 
   return (
     <aside className="fixed top-0 left-0 bottom-0 w-56 bg-white border-r border-gray-100 flex flex-col z-50 shadow-sm">
-      {/* Logo + collapse button */}
+      {/* Logo */}
       <div className="p-4 border-b border-gray-100 flex items-center gap-2">
         <img src="/logo.png" alt="Логотип" className="flex-1 h-auto object-contain min-w-0" />
         <button onClick={() => setCollapsed(true)} className="flex-shrink-0 text-gray-300 hover:text-gray-600 transition-colors" title="Свернуть">
@@ -107,12 +114,15 @@ export default function Sidebar({ projects = [] }) {
           </div>
         )}
 
-        {isAdmin && (
+        {/* Действия: добавить объект — для pm + gip + admin, настройки — только admin */}
+        {canEdit && (
           <>
-            <div className="px-4 py-1 mt-3 mb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Администратор</div>
-            <NavLink to="/admin/projects/new" className={linkCls}>Добавить объект</NavLink>
-            <NavLink to="/settings" className={linkCls}>Настройки</NavLink>
+            <div className="px-4 py-1 mt-3 mb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Действия</div>
+            <NavLink to="/projects/new" className={linkCls}>Добавить объект</NavLink>
           </>
+        )}
+        {isAdmin && (
+          <NavLink to="/settings" className={linkCls}>Настройки</NavLink>
         )}
       </nav>
 

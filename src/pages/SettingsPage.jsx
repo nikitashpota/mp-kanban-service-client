@@ -1,17 +1,17 @@
 import { useState, useEffect } from 'react';
-import { getProjectTypes, createProjectType, updateProjectType, deleteProjectType } from '../api/client';
+import {
+  getProjectTypes, createProjectType, updateProjectType, deleteProjectType,
+  getUsers, createUser, deleteUser,
+} from '../api/client';
+import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-
-const API = 'http://localhost:3001/api';
 
 const inputCls = 'w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-[#C0392B] focus:ring-2 focus:ring-red-100 transition bg-white';
 function Field({ label, children }) {
   return <div><label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">{label}</label>{children}</div>;
 }
 
-// ── Роли ─────────────────────────────────────────────────────
 const ROLES = [
   { key: 'admin',  label: 'Администратор', color: 'bg-red-100 text-red-700',    desc: 'Полный доступ' },
   { key: 'pm',     label: 'РП',            color: 'bg-blue-100 text-blue-700',   desc: 'Канбан + Ход проектирования' },
@@ -24,7 +24,6 @@ function RoleBadge({ role }) {
   return <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${r.color}`}>{r.label}</span>;
 }
 
-// ── Types Tab ─────────────────────────────────────────────────
 function TypesTab() {
   const [types, setTypes] = useState([]);
   const [editId, setEditId] = useState(null);
@@ -33,29 +32,41 @@ function TypesTab() {
   const flash = (text, type = 'success') => { setMsg({ text, type }); setTimeout(() => setMsg(null), 3000); };
   const load = () => getProjectTypes().then(setTypes).catch(() => {});
   useEffect(() => { load(); }, []);
+
   const openNew = () => { setEditId(null); setForm({ name: '', color: '#6b7280', kanban_type: 'administrative' }); };
   const openEdit = t => { setEditId(t.id); setForm({ name: t.name, color: t.color || '#6b7280', kanban_type: t.kanban_type || 'administrative' }); };
+
   const save = async () => {
     if (!form.name.trim()) { flash('Введите название', 'error'); return; }
     try {
-      if (editId) await updateProjectType(editId, form); else await createProjectType(form);
-      flash(editId ? 'Тип обновлён' : 'Тип создан'); setEditId(null); setForm({ name: '', color: '#6b7280', kanban_type: 'administrative' }); load();
+      if (editId) await updateProjectType(editId, form);
+      else await createProjectType(form);
+      flash(editId ? 'Тип обновлён' : 'Тип создан');
+      setEditId(null);
+      setForm({ name: '', color: '#6b7280', kanban_type: 'administrative' });
+      load();
     } catch { flash('Ошибка', 'error'); }
   };
+
   const del = async id => {
     if (!confirm('Удалить тип?')) return;
-    try { await deleteProjectType(id); flash('Удалено'); load(); } catch { flash('Ошибка', 'error'); }
+    try { await deleteProjectType(id); flash('Удалено'); load(); }
+    catch { flash('Ошибка', 'error'); }
   };
+
   return (
     <div className="grid grid-cols-3 gap-6">
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
         <h3 className="text-sm font-bold text-gray-800 mb-4">{editId ? 'Редактировать тип' : 'Добавить тип'}</h3>
         {msg && <div className={`mb-3 text-xs px-3 py-2 rounded-xl border ${msg.type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>{msg.text}</div>}
         <div className="space-y-4">
-          <Field label="Название"><input className={inputCls} value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Напр. Жилой дом" /></Field>
+          <Field label="Название">
+            <input className={inputCls} value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Напр. Жилой дом" />
+          </Field>
           <Field label="Цвет">
             <div className="flex items-center gap-3">
-              <input type="color" className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer p-0.5 flex-shrink-0" value={form.color} onChange={e => setForm(p => ({ ...p, color: e.target.value }))} />
+              <input type="color" className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer p-0.5 flex-shrink-0"
+                value={form.color} onChange={e => setForm(p => ({ ...p, color: e.target.value }))} />
               <span className="text-sm text-gray-500">{form.color}</span>
             </div>
           </Field>
@@ -66,18 +77,27 @@ function TypesTab() {
             </select>
           </Field>
           <div className="flex gap-2 pt-2">
-            {editId && <button onClick={openNew} className="flex-1 px-4 py-2.5 text-sm rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 transition-all">Отмена</button>}
-            <button onClick={save} className="flex-1 px-4 py-2.5 text-sm font-semibold rounded-xl bg-[#C0392B] hover:bg-[#96281B] text-white shadow-sm transition-all">{editId ? 'Сохранить' : '+ Добавить'}</button>
+            {editId && <button onClick={openNew} className="flex-1 px-3 py-1.5 text-xs font-semibold rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 border border-gray-200 transition-all">Отмена</button>}
+            <button onClick={save} className="flex-1 px-3 py-1.5 text-xs font-semibold rounded-xl bg-[#C0392B] hover:bg-[#96281B] text-white shadow-sm transition-all">
+              {editId ? 'Сохранить' : '+ Добавить'}
+            </button>
           </div>
         </div>
       </div>
+
       <div className="col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-100 text-sm font-semibold text-gray-800">Типы объектов <span className="text-gray-400 font-normal ml-1">({types.length})</span></div>
+        <div className="px-5 py-3 border-b border-gray-100 text-sm font-semibold text-gray-800">
+          Типы объектов <span className="text-gray-400 font-normal ml-1">({types.length})</span>
+        </div>
         {types.length === 0 ? (
           <div className="py-12 text-center text-gray-400"><div className="text-3xl mb-2">🏷</div><div className="text-sm">Типы не добавлены</div></div>
         ) : (
           <table className="w-full border-collapse">
-            <thead><tr>{['Цвет', 'Название', 'Канбан', 'Действия'].map(h => <th key={h} className="px-4 py-2.5 text-[11px] font-semibold text-gray-400 bg-gray-50 border-b border-gray-100 text-left uppercase tracking-wide">{h}</th>)}</tr></thead>
+            <thead>
+              <tr>{['Цвет', 'Название', 'Канбан', 'Действия'].map(h => (
+                <th key={h} className="px-4 py-2.5 text-[11px] font-semibold text-gray-400 bg-gray-50 border-b border-gray-100 text-left uppercase tracking-wide">{h}</th>
+              ))}</tr>
+            </thead>
             <tbody className="divide-y divide-gray-50">
               {types.map(t => (
                 <tr key={t.id} className={`hover:bg-gray-50/50 ${editId === t.id ? 'bg-blue-50/30' : ''}`}>
@@ -88,10 +108,12 @@ function TypesTab() {
                       ? <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">Жильё</span>
                       : <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200">Административный</span>}
                   </td>
-                  <td className="px-4 py-3"><div className="flex gap-2">
-                    <button onClick={() => openEdit(t)} className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition-all font-medium">✏ Изменить</button>
-                    <button onClick={() => del(t.id)} className="text-xs px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 transition-all font-medium">✕ Удалить</button>
-                  </div></td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <button onClick={() => openEdit(t)} className="text-xs px-3 py-1.5 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 transition-all font-semibold">Изменить</button>
+                      <button onClick={() => del(t.id)} className="text-xs px-3 py-1.5 rounded-xl bg-white border border-red-200 hover:bg-red-50 text-red-600 transition-all font-semibold">Удалить</button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -102,7 +124,6 @@ function TypesTab() {
   );
 }
 
-// ── Users Tab с ролями ────────────────────────────────────────
 function UsersTab() {
   const [users, setUsers] = useState([]);
   const [modal, setModal] = useState(false);
@@ -115,15 +136,16 @@ function UsersTab() {
   const { user: me } = useAuth();
 
   const flash = (text, type = 'success') => { setMsg({ text, type }); setTimeout(() => setMsg(null), 3000); };
-  const load = async () => { try { const { data } = await axios.get(`${API}/users`); setUsers(data); } catch {} };
+  const load = () => getUsers().then(setUsers).catch(() => {});
   useEffect(() => { load(); }, []);
 
   const save = async () => {
     if (!form.username || !form.password) { flash('Заполните логин и пароль', 'error'); return; }
     setSaving(true);
     try {
-      await axios.post(`${API}/users`, form);
-      flash('Пользователь создан'); setModal(false);
+      await createUser(form);
+      flash('Пользователь создан');
+      setModal(false);
       setForm({ username: '', password: '', full_name: '', role: 'viewer' });
       load();
     } catch (err) { flash(err.response?.data?.error || 'Ошибка', 'error'); }
@@ -133,21 +155,22 @@ function UsersTab() {
   const saveEdit = async (id) => {
     setSaving(true);
     try {
-      await axios.patch(`${API}/users/${id}`, { role: editRole, ...(editPwd ? { password: editPwd } : {}) });
-      setEditId(null); setEditPwd(''); flash('Сохранено'); load();
+      await api.patch(`/users/${id}`, { role: editRole, ...(editPwd ? { password: editPwd } : {}) });
+      setEditId(null); setEditPwd('');
+      flash('Сохранено');
+      load();
     } catch { flash('Ошибка', 'error'); }
     finally { setSaving(false); }
   };
 
   const del = async id => {
     if (!confirm('Удалить пользователя?')) return;
-    try { await axios.delete(`${API}/users/${id}`); flash('Удалено'); load(); }
+    try { await deleteUser(id); flash('Удалено'); load(); }
     catch { flash('Ошибка', 'error'); }
   };
 
   return (
     <div className="space-y-5">
-      {/* Role legend */}
       <div className="grid grid-cols-4 gap-3">
         {ROLES.map(r => (
           <div key={r.key} className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-100 rounded-xl shadow-sm">
@@ -187,10 +210,8 @@ function UsersTab() {
                         onChange={e => setEditPwd(e.target.value)}
                         className="text-xs border border-gray-200 rounded-lg px-2 py-1 w-28 focus:outline-none focus:border-[#C0392B]" />
                       <button onClick={() => saveEdit(u.id)} disabled={saving}
-                        className="text-xs font-semibold px-3 py-1 bg-[#C0392B] text-white rounded-lg hover:bg-[#a93226] disabled:opacity-50">
-                        ✓
-                      </button>
-                      <button onClick={() => setEditId(null)} className="text-xs text-gray-400 hover:text-gray-600">✕</button>
+                        className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-[#C0392B] text-white hover:bg-[#a93226] disabled:opacity-50">Сохранить</button>
+                      <button onClick={() => setEditId(null)} className="text-xs text-gray-400 hover:text-gray-600">Отмена</button>
                     </div>
                   ) : (
                     <RoleBadge role={u.role} />
@@ -201,9 +222,9 @@ function UsersTab() {
                   {u.id !== me?.id && editId !== u.id && (
                     <div className="flex gap-2">
                       <button onClick={() => { setEditId(u.id); setEditRole(u.role || 'viewer'); setEditPwd(''); }}
-                        className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 font-medium">✏ Роль</button>
+                        className="text-xs px-3 py-1.5 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 font-semibold transition-all">Роль</button>
                       <button onClick={() => del(u.id)}
-                        className="text-xs px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-medium">✕</button>
+                        className="text-xs px-3 py-1.5 rounded-xl bg-white border border-red-200 hover:bg-red-50 text-red-600 font-semibold transition-all">Удалить</button>
                     </div>
                   )}
                 </td>
@@ -213,7 +234,6 @@ function UsersTab() {
         </table>
       </div>
 
-      {/* Create modal */}
       {modal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setModal(false)}>
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
@@ -222,18 +242,18 @@ function UsersTab() {
               <button onClick={() => setModal(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
             </div>
             <div className="px-6 py-5 space-y-4">
-              <Field label="Логин *"><input className={inputCls} value={form.username} onChange={e => setForm(p => ({...p, username: e.target.value}))} autoFocus /></Field>
-              <Field label="Пароль *"><input type="password" className={inputCls} value={form.password} onChange={e => setForm(p => ({...p, password: e.target.value}))} /></Field>
-              <Field label="Полное имя"><input className={inputCls} value={form.full_name} onChange={e => setForm(p => ({...p, full_name: e.target.value}))} /></Field>
+              <Field label="Логин *"><input className={inputCls} value={form.username} onChange={e => setForm(p => ({ ...p, username: e.target.value }))} autoFocus /></Field>
+              <Field label="Пароль *"><input type="password" className={inputCls} value={form.password} onChange={e => setForm(p => ({ ...p, password: e.target.value }))} /></Field>
+              <Field label="Полное имя"><input className={inputCls} value={form.full_name} onChange={e => setForm(p => ({ ...p, full_name: e.target.value }))} /></Field>
               <Field label="Роль">
-                <select className={inputCls} value={form.role} onChange={e => setForm(p => ({...p, role: e.target.value}))}>
+                <select className={inputCls} value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))}>
                   {ROLES.map(r => <option key={r.key} value={r.key}>{r.label} — {r.desc}</option>)}
                 </select>
               </Field>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2">
-              <button onClick={() => setModal(false)} className="px-4 py-2 text-sm rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600">Отмена</button>
-              <button onClick={save} disabled={saving} className="px-4 py-2 text-sm font-semibold rounded-xl bg-[#C0392B] hover:bg-[#96281B] text-white shadow-sm disabled:opacity-50">Создать</button>
+              <button onClick={() => setModal(false)} className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-white border border-gray-200 text-gray-600 hover:bg-gray-50">Отмена</button>
+              <button onClick={save} disabled={saving} className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-[#C0392B] hover:bg-[#96281B] text-white shadow-sm disabled:opacity-50">Создать</button>
             </div>
           </div>
         </div>
@@ -242,15 +262,15 @@ function UsersTab() {
   );
 }
 
-// ── Main ──────────────────────────────────────────────────────
 export default function SettingsPage() {
-  const { isAdmin, canApprove } = useAuth();
+  const { isAdmin } = useAuth();
   const nav = useNavigate();
   const [tab, setTab] = useState('types');
 
   useEffect(() => { if (isAdmin === false) nav('/'); }, [isAdmin, nav]);
 
-  const tabs = [{ id: 'types', label: '🏷 Типы объектов' }, { id: 'users', label: '👤 Пользователи' }];
+  const tabs = [{ id: 'types', label: 'Типы объектов' }, { id: 'users', label: 'Пользователи' }];
+
   return (
     <div>
       <h1 className="text-lg font-bold text-gray-900 mb-5">Настройки</h1>

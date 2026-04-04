@@ -4,9 +4,11 @@ import {
   getProject, uploadPhotos, deletePhoto, setPhotoType,
   addContact, updateContact, deleteContact,
   saveNetworks, savePassportHeader, patchPassportStage,
-  savePassportIssues, initPassportV2, importPassportXlsx, deleteProject, photoUrl
+  savePassportIssues, initPassportV2, importPassportXlsx, deleteProject, photoUrl,
+  proposeDate, approveDate, rejectDate,
 } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import PendingApprovalPanel from '../components/PendingApprovalPanel';
 
 // ── Utils ─────────────────────────────────────────────────────
 const fmtDate = d => d ? new Date(d).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
@@ -43,6 +45,56 @@ const DEFAULT_NETWORKS = [
 const inputCls = 'w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 bg-white transition-all';
 const thCls = 'px-3 py-2 text-[11px] font-semibold text-gray-500 bg-gray-50 border-b border-r border-gray-100 text-center whitespace-nowrap';
 const tdCls = 'px-2 py-1.5 border-b border-r border-gray-100 text-xs align-middle';
+
+// ── Pending indicator ─────────────────────────────────────────
+function PendingBadge({ pendingDate, pendingByName, pendingAt, slot, stageId, canApprove, onApproved }) {
+  const [loading, setLoading] = useState(false);
+  if (!pendingDate) return null;
+
+  const fmt = d => d ? new Date(d).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '';
+  const fmtTs = d => {
+    if (!d) return '';
+    const dt = new Date(d);
+    return `${fmt(d)} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+  };
+
+  const handle = async (action) => {
+    setLoading(true);
+    try {
+      if (action === 'approve') await approveDate(stageId, slot);
+      else await rejectDate(stageId, slot);
+      onApproved?.();
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="mt-1.5 w-full bg-amber-50 border border-amber-200 rounded-lg p-2 flex flex-col items-center gap-1.5">
+      {/* Иконка + дата — строго по центру, в одну строку */}
+      <div className="flex items-center justify-center gap-1.5 w-full">
+        <span className="text-amber-400 leading-none text-sm flex-shrink-0">🕐</span>
+        <span className="text-[11px] font-bold text-amber-700 leading-none whitespace-nowrap">{fmt(pendingDate)}</span>
+      </div>
+      {/* Автор + метка времени */}
+      <div className="text-[9px] text-gray-400 leading-none text-center w-full truncate">
+        {pendingByName || 'ГИП'}{pendingAt ? ` · ${fmtTs(pendingAt)}` : ''}
+      </div>
+      {canApprove ? (
+        <div className="flex gap-1.5 w-full mt-0.5">
+          <button disabled={loading} onClick={() => handle('approve')}
+            className="flex-1 text-[9px] font-bold py-1 bg-green-500 text-white rounded-md hover:bg-green-600 disabled:opacity-50 transition-all leading-none">
+            ✓ Принять
+          </button>
+          <button disabled={loading} onClick={() => handle('reject')}
+            className="flex-1 text-[9px] font-bold py-1 bg-white border border-red-300 text-red-500 rounded-md hover:bg-red-50 disabled:opacity-50 transition-all leading-none">
+            ✕
+          </button>
+        </div>
+      ) : (
+        <div className="text-[9px] text-amber-600 text-center leading-tight">Ожидает утверждения РП</div>
+      )}
+    </div>
+  );
+}
 
 // ── Inline editable cell ──────────────────────────────────────
 function EC({ value, type = 'text', onSave, placeholder = '' }) {
@@ -148,7 +200,7 @@ export default function ProjectDetailPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState(null);
-  const [activeBlock, setActiveBlock] = useState(1); // 1 = Сводка, 2 = ТЭП
+  const [activeBlock, setActiveBlock] = useState(1);
 
   const [networks, setNetworks] = useState([]);
   const [networksDirty, setNetworksDirty] = useState(false);
@@ -158,15 +210,17 @@ export default function ProjectDetailPage() {
   const [issuesDirty, setIssuesDirty] = useState(false);
   const [savingIssues, setSavingIssues] = useState(false);
 
-  const [passportModal, setPassportModal] = useState(false);
   const [passportForm, setPassportForm] = useState({});
 
   const [contactModal, setContactModal] = useState(null);
   const [contactForm, setContactForm] = useState({ legal_entity: '', position: '', person_name: '', email: '' });
 
-  const [lightIndex, setLightIndex] = useState(null); // lightbox
+  const [lightIndex, setLightIndex] = useState(null);
+  const [pendingPanel, setPendingPanel] = useState(false);
 
   const galleryInputRef = useRef();
+  const importRef = useRef();
+
   const flash = (text, type = 'success') => { setMsg({ text, type }); setTimeout(() => setMsg(null), 3500); };
 
   const load = useCallback(async () => {
@@ -192,7 +246,6 @@ export default function ProjectDetailPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Handle #issues hash — switch to block 2 and scroll
   useEffect(() => {
     if (location.hash === '#issues' && !loading) {
       setActiveBlock(2);
@@ -229,7 +282,7 @@ export default function ProjectDetailPage() {
 
   // Passport header
   const handleSavePassport = async () => {
-    try { await savePassportHeader(id, passportForm); flash('Реквизиты сохранены'); setPassportModal(false); load(); }
+    try { await savePassportHeader(id, passportForm); flash('Реквизиты сохранены'); load(); }
     catch { flash('Ошибка', 'error'); }
   };
   const handleInitPassport = async () => {
@@ -237,7 +290,6 @@ export default function ProjectDetailPage() {
     catch (err) { flash(err.response?.data?.error || 'Ошибка', 'error'); }
   };
 
-  const importRef = useRef();
   const handleImportXlsx = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -251,21 +303,74 @@ export default function ProjectDetailPage() {
       flash(err.response?.data?.error || 'Ошибка импорта', 'error');
     }
   };
+
+  // ── Key function: patch stage with pending logic ──────────────
   const handlePatchStage = async (stageId, field, value) => {
+    // Только фактические даты исполнения идут через pending для ГИПа
+    const isPendingField = field === 'execution_actual' || field === 'execution_actual_2';
+
     try {
-      await patchPassportStage(id, stageId, { [field]: value });
-      // Update local state — no full reload, no scroll reset
+      if (isPendingField && canEdit && !canApprove) {
+        // GIP → propose pending
+        const slot = field === 'execution_actual_2' ? 2 : 1;
+        await proposeDate(stageId, value, slot);
+        flash('Дата предложена — ожидает утверждения РП');
+        const pendingField = slot === 1 ? 'execution_actual_pending' : 'execution_actual_pending_2';
+        setData(prev => prev ? {
+          ...prev,
+          passportStages: prev.passportStages.map(s =>
+            s.id === stageId ? { ...s, [pendingField]: value || null } : s
+          ),
+        } : prev);
+      } else {
+        // Все остальные поля (включая note, responsible, readiness, даты для PM/admin) — напрямую
+        await patchPassportStage(id, stageId, { [field]: value });
+        const updatedFields = { [field]: value || null };
+        if (field === 'execution_actual')   updatedFields.execution_actual_pending = null;
+        if (field === 'execution_actual_2') updatedFields.execution_actual_pending_2 = null;
+        setData(prev => prev ? {
+          ...prev,
+          passportStages: prev.passportStages.map(s =>
+            s.id === stageId ? { ...s, ...updatedFields } : s
+          ),
+        } : prev);
+      }
+    } catch { flash('Ошибка сохранения', 'error'); }
+  };
+
+  // Approve/reject directly from table (for PM)
+  const handleApproveStage = async (stageId, slot) => {
+    try {
+      await approveDate(stageId, slot);
+      flash('Дата утверждена');
+      const field = slot === 1 ? 'execution_actual_pending' : 'execution_actual_pending_2';
+      const actualField = slot === 1 ? 'execution_actual' : 'execution_actual_2';
       setData(prev => {
         if (!prev) return prev;
+        const stage = prev.passportStages.find(s => s.id === stageId);
+        if (!stage) return prev;
         return {
           ...prev,
           passportStages: prev.passportStages.map(s =>
-            s.id === stageId ? { ...s, [field]: value || null } : s
+            s.id === stageId ? { ...s, [actualField]: s[field], [field]: null } : s
           ),
         };
       });
-    }
-    catch { flash('Ошибка', 'error'); }
+    } catch { flash('Ошибка', 'error'); }
+  };
+
+  const handleRejectStage = async (stageId, slot) => {
+    try {
+      await rejectDate(stageId, slot);
+      flash('Дата отклонена');
+      const field = slot === 1 ? 'execution_actual_pending' : 'execution_actual_pending_2';
+      setData(prev => prev ? {
+        ...prev,
+        passportStages: prev.passportStages.map(s =>
+          s.id === stageId ? { ...s, [field]: null } : s
+        ),
+      } : prev);
+    } catch { flash('Ошибка', 'error'); }
   };
 
   // Networks
@@ -306,8 +411,7 @@ export default function ProjectDetailPage() {
       await deleteProject(id);
       localStorage.setItem('projects_updated', Date.now());
       nav('/projects');
-    }
-    catch { flash('Ошибка', 'error'); }
+    } catch { flash('Ошибка', 'error'); }
   };
 
   if (loading) return <div className="flex justify-center py-20"><div className="w-8 h-8 rounded-full border-[3px] border-gray-200 border-t-brand-500 animate-spin" /></div>;
@@ -317,6 +421,13 @@ export default function ProjectDetailPage() {
   const passport = data.passport;
   const photoByType = type => photos.find(p => p.photo_type === type);
   const galleryPhotos = photos.filter(p => !p.photo_type || p.photo_type === 'gallery');
+
+  // Count pending approvals
+  const pendingCount = passportStages.reduce((acc, s) => {
+    if (s.execution_actual_pending) acc++;
+    if (s.execution_actual_pending_2) acc++;
+    return acc;
+  }, 0);
 
   return (
     <>
@@ -332,12 +443,22 @@ export default function ProjectDetailPage() {
           <h1 className="text-xl font-bold text-gray-900 leading-tight">{project.name}</h1>
           {project.address && <p className="text-sm text-gray-400 mt-0.5">📍 {project.address}</p>}
         </div>
-        {canEdit && (
-          <div className="flex gap-2 flex-wrap flex-shrink-0">
-            <button onClick={() => nav(`/admin/projects/${id}/edit`)} className="px-3 py-1.5 text-xs font-medium rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 transition-all">Редактировать</button>
-            <button onClick={handleDeleteProject} className="px-3 py-1.5 text-xs font-medium rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 transition-all">Удалить</button>
-          </div>
-        )}
+        <div className="flex gap-2 flex-wrap flex-shrink-0">
+          {/* Pending badge for PM/admin */}
+          {canApprove && pendingCount > 0 && (
+            <button onClick={() => setPendingPanel(true)}
+              className="relative px-3 py-1.5 text-xs font-semibold rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 transition-all">
+              🕐 Ожидают утверждения
+              <span className="ml-1.5 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingCount}</span>
+            </button>
+          )}
+          {canEdit && (
+            <button onClick={() => nav(`/projects/${id}/edit`)} className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 transition-all">Редактировать</button>
+          )}
+          {isAdmin && (
+            <button onClick={handleDeleteProject} className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-white border border-red-200 hover:bg-red-50 text-red-600 transition-all">Удалить</button>
+          )}
+        </div>
       </div>
 
       {/* ── Block tabs ── */}
@@ -346,20 +467,19 @@ export default function ProjectDetailPage() {
           <button key={b.id} onClick={() => setActiveBlock(b.id)}
             className={`px-5 py-2 text-sm font-semibold rounded-xl transition-all ${activeBlock === b.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
             {b.label}
+            {b.id === 2 && pendingCount > 0 && canApprove && (
+              <span className="ml-1.5 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingCount}</span>
+            )}
           </button>
         ))}
       </div>
 
-      {/* ══════════════════════════════════════════
-          BLOCK 1 — СВОДНАЯ ИНФОРМАЦИЯ
-      ══════════════════════════════════════════ */}
+      {/* ══════════════ BLOCK 1 — СВОДНАЯ ИНФОРМАЦИЯ ══════════════ */}
       {activeBlock === 1 && (
         <div className="space-y-5">
-
-          {/* Row 1: Main photo + Info table */}
           <div className="grid grid-cols-2 gap-5">
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-              <PhotoSlot type="main" photo={photoByType('main')} photos={photos} isAdmin={canApprove}
+              <PhotoSlot type="main" photo={photoByType('main')} photos={photos} isAdmin={canEdit}
                 onAssign={handleAssignType} onUpload={handleUploadTyped} label="Визуализация фасада" />
             </div>
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -384,22 +504,20 @@ export default function ProjectDetailPage() {
             </div>
           </div>
 
-          {/* Row 2: Location + Elevation */}
           <div className="grid grid-cols-2 gap-5">
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-              <PhotoSlot type="location" photo={photoByType('location')} photos={photos} isAdmin={canApprove}
+              <PhotoSlot type="location" photo={photoByType('location')} photos={photos} isAdmin={canEdit}
                 onAssign={handleAssignType} onUpload={handleUploadTyped} label="Местоположение участка планируемой застройки" />
             </div>
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-              <PhotoSlot type="elevation" photo={photoByType('elevation')} photos={photos} isAdmin={canApprove}
+              <PhotoSlot type="elevation" photo={photoByType('elevation')} photos={photos} isAdmin={canEdit}
                 onAssign={handleAssignType} onUpload={handleUploadTyped} label="План участка на карте высот" />
             </div>
           </div>
 
-          {/* Row 3: Site plan + Engineering networks */}
           <div className="grid grid-cols-2 gap-5">
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-              <PhotoSlot type="site_plan" photo={photoByType('site_plan')} photos={photos} isAdmin={canApprove}
+              <PhotoSlot type="site_plan" photo={photoByType('site_plan')} photos={photos} isAdmin={canEdit}
                 onAssign={handleAssignType} onUpload={handleUploadTyped} label="Схема планировочной организации ЗУ и план инженерных сетей" />
             </div>
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -441,7 +559,6 @@ export default function ProjectDetailPage() {
             </div>
           </div>
 
-          {/* Row 4: Gallery */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
               <span className="text-sm font-semibold text-gray-800">Фотографии объекта</span>
@@ -470,17 +587,13 @@ export default function ProjectDetailPage() {
               <div className="py-8 text-center text-sm text-gray-400">Загрузите фотографии объекта</div>
             )}
           </div>
-
         </div>
       )}
 
-      {/* ══════════════════════════════════════════
-          BLOCK 2 — ТЭП И ДОКУМЕНТАЦИЯ
-      ══════════════════════════════════════════ */}
+      {/* ══════════════ BLOCK 2 — ХОД ПРОЕКТИРОВАНИЯ ══════════════ */}
       {activeBlock === 2 && (
         <div className="space-y-5">
 
-          {/* Passport header sub-info */}
           {passport && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-100 text-sm font-semibold text-gray-800">{project.name}</div>
@@ -495,10 +608,18 @@ export default function ProjectDetailPage() {
             </div>
           )}
 
-          {/* Passport stages table */}
+          {/* Stages table */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-              <span className="text-sm font-semibold text-gray-800">Этапы проектирования</span>
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-semibold text-gray-800">Этапы проектирования</span>
+                {pendingCount > 0 && canApprove && (
+                  <button onClick={() => setPendingPanel(true)}
+                    className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 rounded-xl transition-all">
+                    🕐 {pendingCount} ожидают утверждения
+                  </button>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 {canEdit && <span className="text-xs text-gray-400">Кликните ячейку для редактирования</span>}
                 {canEdit && (
@@ -522,7 +643,7 @@ export default function ProjectDetailPage() {
               <div className="py-16 text-center text-sm text-gray-400">
                 <div className="text-4xl mb-3">📋</div>
                 Этапы не созданы
-                {canEdit && <div className="mt-4"><button onClick={handleInitPassport} className="px-4 py-2 text-sm font-semibold rounded-xl bg-brand-500 hover:bg-brand-600 text-white shadow-sm transition-all">Создать все 29 этапов</button></div>}
+                {canEdit && <div className="mt-4"><button onClick={handleInitPassport} className="px-4 py-2 text-sm font-semibold rounded-xl bg-brand-500 hover:bg-brand-600 text-white shadow-sm transition-all">Создать все этапы</button></div>}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -534,17 +655,15 @@ export default function ProjectDetailPage() {
                       <th className={`${thCls} text-left`} style={{ width: 195 }}>Детализация</th>
                       <th className={thCls} style={{ width: 70 }}>Готов-ность</th>
                       <th className={thCls} style={{ width: 110 }}>Срок<br/><span className="text-[10px] font-normal text-gray-400">договор / директ.</span></th>
-                      <th className={thCls} style={{ width: 110 }}>Исполнение<br/><span className="text-[10px] font-normal text-gray-400">план / факт</span></th>
+                      <th className={thCls} style={{ width: 130 }}>Исполнение<br/><span className="text-[10px] font-normal text-gray-400">план / факт</span></th>
                       <th className={thCls} style={{ width: 75 }}>Отв.</th>
                       <th className={`${thCls} text-left`}>Примечание</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(() => {
-                      // Precompute which rows are documentation sub-rows
                       const docNums = new Set(['26', '27']);
                       const NON_NUMERIC_NUMS = new Set(['bzu','trans','shopr','kvart','snos','rd_zero']);
-                      // Survey rows that show 1эт/2эт (deadline_directive / execution_actual)
                       const SURVEY_NUMS = new Set(['5','6','7','8','9']);
                       let lastParentNum = null;
                       const rowMeta = passportStages.map(s => {
@@ -557,24 +676,24 @@ export default function ProjectDetailPage() {
                       const rows = [];
                       passportStages.forEach((s, idx) => {
                         const { isCountRow, isSurveyRow } = rowMeta[idx];
-                        const isSubRow = !s.stage_num && !s.stage_name;
                         const isSlot2 = s.kanban_slot === 2;
                         const displayNum = s.stage_num && !NON_NUMERIC_NUMS.has(s.stage_num) ? s.stage_num : '';
                         const planDate   = isSlot2 ? s.parent_planned_2 : s.execution_planned;
                         const actualDate = isSlot2 ? s.parent_actual_2  : s.execution_actual;
+                        const pendDate   = isSlot2 ? s.execution_actual_pending_2 : s.execution_actual_pending;
                         const rd = parseInt(s.readiness) || 0;
                         const statusKey = isSlot2 ? s.parent_kanban_status_2 : s.kanban_status;
                         const statusColor = KANBAN_STATUS_COLORS[statusKey];
                         const dateCellStyle = statusColor
                           ? { background: statusColor.bg, borderColor: statusColor.border }
                           : {};
+                        const slot = isSlot2 ? 2 : 1;
 
                         if (isSurveyRow) {
                           const sc = KANBAN_STATUS_COLORS[s.kanban_status];
                           const scStyle = sc ? { background: sc.bg, borderColor: sc.border } : {};
 
                           rows.push(
-                            // Main row — срок (договор/директивный), без разбивки на этапы
                             <tr key={`${s.id}-main`} className="hover:bg-gray-50/30">
                               <td className={`${tdCls} text-center text-gray-400 font-mono text-[11px]`}>{displayNum}</td>
                               <td className={`${tdCls} font-semibold text-gray-800 text-xs`}>
@@ -584,7 +703,6 @@ export default function ProjectDetailPage() {
                                 {canEdit ? <EC value={s.sub_stage_name} onSave={v => handlePatchStage(s.id, 'sub_stage_name', v)} placeholder="—" /> : (s.sub_stage_name || '')}
                               </td>
                               <td className={`${tdCls} text-center`}><span className="text-gray-300 text-xs">—</span></td>
-                              {/* Срок — единый, без разбивки */}
                               <td className={`${tdCls} text-center`} style={{ minWidth: 90 }}>
                                 <div className="flex flex-col gap-0.5">
                                   {canEdit ? <><EC value={s.deadline_contract} type="date" onSave={v => handlePatchStage(s.id, 'deadline_contract', v)} placeholder="дог." /><EC value={s.deadline_directive} type="date" onSave={v => handlePatchStage(s.id, 'deadline_directive', v)} placeholder="дир." /></>
@@ -600,7 +718,6 @@ export default function ProjectDetailPage() {
                               </td>
                             </tr>,
 
-                            // 1й этап — план/факт
                             <tr key={`${s.id}-e1`} className="bg-gray-50/40 hover:bg-gray-50">
                               <td className={`${tdCls} text-center text-gray-300 text-[10px]`}></td>
                               <td className={`${tdCls} text-xs text-gray-400`}></td>
@@ -611,22 +728,29 @@ export default function ProjectDetailPage() {
                                 <div className="flex items-center justify-center gap-0.5">
                                   {canEdit && <EC value={rd > 0 ? String(rd) : ''} type="number" onSave={v => handlePatchStage(s.id, 'readiness', v)} placeholder="%" />}
                                   {rd > 0 && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${readinessCls(rd)}`}>{rd}%</span>}
-                                  {!isAdmin && !rd && <span className="text-gray-300 text-xs">—</span>}
                                 </div>
                               </td>
                               <td className={`${tdCls} text-center`} style={{ minWidth: 90 }}><span className="text-gray-200 text-xs">—</span></td>
                               <td className={`${tdCls} text-center`} style={{ minWidth: 90, ...scStyle }}>
                                 <div className="flex flex-col gap-0.5">
-                                  {canEdit
-                                    ? <><EC value={s.execution_planned} type="date" onSave={v => handlePatchStage(s.id, 'execution_planned', v)} placeholder="план" /><EC value={s.execution_actual} type="date" onSave={v => handlePatchStage(s.id, 'execution_actual', v)} placeholder="факт" /></>
+                                  {canEdit ? <><EC value={s.execution_planned} type="date" onSave={v => handlePatchStage(s.id, 'execution_planned', v)} placeholder="план" /><EC value={s.execution_actual} type="date" onSave={v => handlePatchStage(s.id, 'execution_actual', v)} placeholder="факт" /></>
                                     : <><span className="text-xs text-gray-500">{fmtDate(s.execution_planned) || '—'}</span>{s.execution_actual && <span className="text-xs font-semibold px-1 rounded" style={sc ? { color: sc.text } : {}}>{fmtDate(s.execution_actual)}</span>}</>}
+                                  {s.execution_actual_pending && (
+                                    <PendingBadge
+                                      pendingDate={s.execution_actual_pending}
+                                      pendingByName={s.pending_by_name}
+                                      pendingAt={s.pending_at}
+                                      slot={1} stageId={s.id}
+                                      canApprove={canApprove}
+                                      onApproved={() => { handleApproveStage(s.id, 1); }}
+                                    />
+                                  )}
                                 </div>
                               </td>
                               <td className={tdCls}></td>
                               <td className={tdCls}></td>
                             </tr>,
 
-                            // 2й этап — план/факт
                             <tr key={`${s.id}-e2`} className="bg-gray-50/40 hover:bg-gray-50">
                               <td className={`${tdCls} text-center text-gray-300 text-[10px]`}></td>
                               <td className={`${tdCls} text-xs text-gray-400`}></td>
@@ -637,9 +761,18 @@ export default function ProjectDetailPage() {
                               <td className={`${tdCls} text-center`} style={{ minWidth: 90 }}><span className="text-gray-200 text-xs">—</span></td>
                               <td className={`${tdCls} text-center`} style={{ minWidth: 90, ...scStyle }}>
                                 <div className="flex flex-col gap-0.5">
-                                  {canEdit
-                                    ? <><EC value={s.execution_planned_2} type="date" onSave={v => handlePatchStage(s.id, 'execution_planned_2', v)} placeholder="план" /><EC value={s.execution_actual_2} type="date" onSave={v => handlePatchStage(s.id, 'execution_actual_2', v)} placeholder="факт" /></>
+                                  {canEdit ? <><EC value={s.execution_planned_2} type="date" onSave={v => handlePatchStage(s.id, 'execution_planned_2', v)} placeholder="план" /><EC value={s.execution_actual_2} type="date" onSave={v => handlePatchStage(s.id, 'execution_actual_2', v)} placeholder="факт" /></>
                                     : <><span className="text-xs text-gray-500">{fmtDate(s.execution_planned_2) || '—'}</span>{s.execution_actual_2 && <span className="text-xs font-semibold px-1 rounded" style={sc ? { color: sc.text } : {}}>{fmtDate(s.execution_actual_2)}</span>}</>}
+                                  {s.execution_actual_pending_2 && (
+                                    <PendingBadge
+                                      pendingDate={s.execution_actual_pending_2}
+                                      pendingByName={s.pending_by_name}
+                                      pendingAt={s.pending_at}
+                                      slot={2} stageId={s.id}
+                                      canApprove={canApprove}
+                                      onApproved={() => handleApproveStage(s.id, 2)}
+                                    />
+                                  )}
                                 </div>
                               </td>
                               <td className={tdCls}></td>
@@ -650,7 +783,7 @@ export default function ProjectDetailPage() {
                         }
 
                         rows.push(
-                          <tr key={s.id} className={`transition-colors ${isSubRow ? 'bg-gray-50/60 hover:bg-gray-50' : 'hover:bg-gray-50/30'} ${isSlot2 ? 'bg-blue-50/20' : ''}`}>
+                          <tr key={s.id} className={`transition-colors ${!s.stage_num && !s.stage_name ? 'bg-gray-50/60 hover:bg-gray-50' : 'hover:bg-gray-50/30'} ${isSlot2 ? 'bg-blue-50/20' : ''}`}>
                             <td className={`${tdCls} text-center text-gray-400 font-mono text-[11px]`}>{displayNum}</td>
                             <td className={`${tdCls} font-semibold text-gray-800 text-xs`}>
                               {canEdit ? <EC value={s.stage_name} onSave={v => handlePatchStage(s.id, 'stage_name', v)} placeholder="—" /> : (s.stage_name || '')}
@@ -671,7 +804,7 @@ export default function ProjectDetailPage() {
                                   <div className="flex items-center justify-center gap-0.5">
                                     {canEdit && !isSlot2 && <EC value={rd > 0 ? String(rd) : ''} type="number" onSave={v => handlePatchStage(s.id, 'readiness', v)} placeholder="%" />}
                                     {rd > 0 && <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${readinessCls(rd)}`}>{rd}%</span>}
-                                    {!isAdmin && !rd && <span className="text-gray-300 text-xs">—</span>}
+                                    {!canEdit && !rd && <span className="text-gray-300 text-xs">—</span>}
                                   </div>
                                 </td>
                                 <td className={`${tdCls} text-center`} style={{ minWidth: 90, ...dateCellStyle }}>
@@ -681,11 +814,24 @@ export default function ProjectDetailPage() {
                                       : <><span className="text-xs text-gray-600">{fmtDate(s.deadline_contract) || (isSlot2 ? '' : '—')}</span><span className="text-xs text-gray-400">{fmtDate(s.deadline_directive)}</span></>}
                                   </div>
                                 </td>
-                                <td className={`${tdCls} text-center`} style={{ minWidth: 90, ...dateCellStyle }}>
+                                <td className={`${tdCls} text-center`} style={{ minWidth: 130, ...dateCellStyle }}>
                                   <div className="flex flex-col gap-0.5">
                                     {canEdit
                                       ? <><EC value={planDate} type="date" onSave={v => handlePatchStage(s.id, 'execution_planned', v)} placeholder="план" /><EC value={actualDate} type="date" onSave={v => handlePatchStage(s.id, 'execution_actual', v)} placeholder="факт" /></>
                                       : <><span className="text-xs" style={{ color: '#6b7280' }}>{fmtDate(planDate) || '—'}</span>{actualDate && <span className="text-xs font-semibold px-1 rounded" style={statusColor ? { color: statusColor.text } : { color: '#15803d', background: '#f0fdf4' }}>{fmtDate(actualDate)}</span>}</>}
+                                    {/* Pending indicator */}
+                                    {pendDate && (
+                                      <PendingBadge
+                                        pendingDate={pendDate}
+                                        pendingByName={s.pending_by_name}
+                                        pendingAt={s.pending_at}
+                                        slot={slot} stageId={s.id}
+                                        canApprove={canApprove}
+                                        onApproved={() => {
+                                          if (canApprove) handleApproveStage(s.id, slot);
+                                        }}
+                                      />
+                                    )}
                                   </div>
                                 </td>
                               </>
@@ -719,11 +865,10 @@ export default function ProjectDetailPage() {
             ) : (
               <table className="w-full border-collapse">
                 <thead>
-                  <tr>
-                    {['Юр. лицо', 'Должность / роль', 'Ф.И.О.', 'Email'].map(h => (
-                      <th key={h} className={`${thCls} text-left`}>{h}</th>
-                    ))}
-                    {canEdit && <th className={thCls} style={{ width: 72 }} />}
+                  <tr>{['Юр. лицо', 'Должность / роль', 'Ф.И.О.', 'Email'].map(h => (
+                    <th key={h} className={`${thCls} text-left`}>{h}</th>
+                  ))}
+                  {canEdit && <th className={thCls} style={{ width: 72 }} />}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -732,11 +877,7 @@ export default function ProjectDetailPage() {
                       <td className={`${tdCls} text-gray-600`}>{c.legal_entity || '—'}</td>
                       <td className={`${tdCls} font-medium text-gray-800`}>{c.position || '—'}</td>
                       <td className={`${tdCls} text-gray-700`}>{c.person_name || '—'}</td>
-                      <td className={`${tdCls}`}>
-                        {c.email
-                          ? <a href={`mailto:${c.email}`} className="text-brand-600 hover:underline">{c.email}</a>
-                          : <span className="text-gray-300">—</span>}
-                      </td>
+                      <td className={tdCls}>{c.email ? <a href={`mailto:${c.email}`} className="text-brand-600 hover:underline">{c.email}</a> : <span className="text-gray-300">—</span>}</td>
                       {canEdit && (
                         <td className={tdCls}>
                           <div className="flex gap-1.5">
@@ -807,7 +948,6 @@ export default function ProjectDetailPage() {
               </tbody>
             </table>
           </div>
-
         </div>
       )}
 
@@ -821,34 +961,35 @@ export default function ProjectDetailPage() {
         </Modal>
       )}
 
-      {/* ── Lightbox ── */}
+      {/* Pending approval panel */}
+      {pendingPanel && (
+        <PendingApprovalPanel
+          projectId={id}
+          projectName={project?.name}
+          onClose={() => setPendingPanel(false)}
+          onApproved={() => { load(); }}
+        />
+      )}
+
+      {/* Lightbox */}
       {lightIndex !== null && galleryPhotos.length > 0 && (
         <div className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4"
           onClick={() => setLightIndex(null)}>
-          {/* Close */}
           <button className="absolute top-5 right-6 text-white text-3xl leading-none hover:text-gray-300 z-10"
             onClick={() => setLightIndex(null)}>✕</button>
-          {/* Counter */}
           <div className="absolute top-5 left-1/2 -translate-x-1/2 text-white/60 text-sm">
             {lightIndex + 1} / {galleryPhotos.length}
           </div>
-          {/* Prev */}
           {galleryPhotos.length > 1 && (
             <button className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/15 hover:bg-white/30 flex items-center justify-center text-white text-2xl transition-all z-10"
-              onClick={e => { e.stopPropagation(); setLightIndex(i => (i - 1 + galleryPhotos.length) % galleryPhotos.length); }}>
-              ‹
-            </button>
+              onClick={e => { e.stopPropagation(); setLightIndex(i => (i - 1 + galleryPhotos.length) % galleryPhotos.length); }}>‹</button>
           )}
-          {/* Image */}
           <img src={photoUrl(galleryPhotos[lightIndex].filename)} alt=""
             className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
             onClick={e => e.stopPropagation()} />
-          {/* Next */}
           {galleryPhotos.length > 1 && (
             <button className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/15 hover:bg-white/30 flex items-center justify-center text-white text-2xl transition-all z-10"
-              onClick={e => { e.stopPropagation(); setLightIndex(i => (i + 1) % galleryPhotos.length); }}>
-              ›
-            </button>
+              onClick={e => { e.stopPropagation(); setLightIndex(i => (i + 1) % galleryPhotos.length); }}>›</button>
           )}
         </div>
       )}

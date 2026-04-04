@@ -6,7 +6,6 @@ const EMPTY = {
   name:'', address:'', area_total:'', area_building:'', area_underground:'',
   floors_above:'', floors_below:'', height:'', completion_date:'', description:'',
   gip_name:'', gip_phone:'', is_terminated: false, project_type_id:'',
-  // Реквизиты паспорта
   customer:'', functional_customer:'', general_designer:'', developer:'',
   aip_cost:'', passport_completion_date:'', contract_pir:'',
 };
@@ -42,9 +41,9 @@ export default function ProjectFormPage() {
   useEffect(() => {
     getProjectTypes().then(t => {
       setTypes(t);
-      // Auto-select first type for new projects
       if (!isEdit && t.length > 0) setForm(p => ({ ...p, project_type_id: String(t[0].id) }));
     }).catch(() => {});
+
     if (!isEdit) return;
     getProject(id).then(d => {
       const p = d.project;
@@ -57,7 +56,6 @@ export default function ProjectFormPage() {
         description: p.description||'', gip_name: p.gip_name||'', gip_phone: p.gip_phone||'',
         is_terminated: p.is_terminated||false,
         project_type_id: p.project_type_id ? String(p.project_type_id) : '',
-        // Реквизиты
         customer: pp.customer||'', functional_customer: pp.functional_customer||'',
         general_designer: pp.general_designer||'', developer: pp.developer||'',
         aip_cost: pp.aip_cost||'', passport_completion_date: pp.completion_date||'',
@@ -76,18 +74,12 @@ export default function ProjectFormPage() {
       let projectId = id;
       if (isEdit) {
         await updateProject(id, form);
-        // Only update type if it's explicitly set in the form
-        if (form.project_type_id) {
-          await assignProjectType(projectId, form.project_type_id);
-        }
+        if (form.project_type_id) await assignProjectType(projectId, form.project_type_id);
       } else {
         const c = await createProject(form);
         projectId = c.id;
-        if (form.project_type_id) {
-          await assignProjectType(projectId, form.project_type_id);
-        }
+        if (form.project_type_id) await assignProjectType(projectId, form.project_type_id);
       }
-      // Save passport header
       await savePassportHeader(projectId, {
         customer: form.customer,
         functional_customer: form.functional_customer,
@@ -106,17 +98,19 @@ export default function ProjectFormPage() {
 
   if (loading) return <div className="flex justify-center py-20"><div className="w-8 h-8 border-[3px] border-gray-200 border-t-[#C0392B] rounded-full animate-spin" /></div>;
 
+  const cancelPath = isEdit ? `/projects/${id}` : '/projects';
+
   return (
     <form onSubmit={submit}>
       <div className="flex items-center justify-between mb-5">
         <h1 className="text-lg font-bold text-gray-900">{isEdit ? 'Редактирование объекта' : 'Новый объект'}</h1>
         <div className="flex gap-2">
-          <button type="button" onClick={() => nav(isEdit ? `/projects/${id}` : '/projects')}
-            className="border border-gray-200 text-gray-600 text-sm px-4 py-2 rounded-xl hover:bg-gray-50 transition-colors">
+          <button type="button" onClick={() => nav(cancelPath)}
+            className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all">
             Отмена
           </button>
           <button type="submit" disabled={saving}
-            className="bg-[#C0392B] hover:bg-[#96281B] text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm transition-all disabled:opacity-60">
+            className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-[#C0392B] hover:bg-[#96281B] text-white shadow-sm transition-all disabled:opacity-60">
             {saving ? 'Сохранение...' : 'Сохранить'}
           </button>
         </div>
@@ -124,7 +118,6 @@ export default function ProjectFormPage() {
 
       {error && <div className="mb-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
 
-      {/* ── Основная информация ── */}
       <Card title="Основная информация">
         <div className="mb-4"><Label>Название объекта *</Label><Input value={form.name} onChange={set('name')} placeholder="Напр. Кавказский бульвар з/у 27" /></div>
         <div className="mb-4"><Label>Адрес</Label><Input value={form.address} onChange={set('address')} /></div>
@@ -141,7 +134,6 @@ export default function ProjectFormPage() {
         <div className="mb-4"><Label>Описание</Label><Textarea value={form.description} onChange={set('description')} /></div>
       </Card>
 
-      {/* ── Реквизиты паспорта ── */}
       <Card title="Реквизиты паспорта" subtitle="Отображаются на странице объекта в блоке «Сводная информация»">
         <div className="grid grid-cols-2 gap-4">
           <div><Label>Заказчик</Label><Input value={form.customer} onChange={set('customer')} /></div>
@@ -150,7 +142,8 @@ export default function ProjectFormPage() {
           <div><Label>Застройщик</Label><Input value={form.developer} onChange={set('developer')} /></div>
           <div><Label>Стоимость по АИП</Label><Input value={form.aip_cost} onChange={set('aip_cost')} placeholder="Напр. 5804,00 млн. руб." /></div>
           <div><Label>Срок ввода</Label><Input value={form.passport_completion_date} onChange={set('passport_completion_date')} placeholder="Напр. Октябрь 2028 г." /></div>
-          <div><Label>Договор на ПИР</Label>
+          <div>
+            <Label>Договор на ПИР</Label>
             <div className="flex items-center gap-3">
               <Input value={form.contract_pir} onChange={set('contract_pir')} />
               <label className="flex items-center gap-2 cursor-pointer whitespace-nowrap flex-shrink-0">
@@ -163,7 +156,6 @@ export default function ProjectFormPage() {
         </div>
       </Card>
 
-      {/* ── ТЭП ── */}
       <Card title="Основные показатели (ТЭП)">
         <div className="grid grid-cols-3 gap-4 mb-4">
           <div><Label>Общая площадь, м²</Label><Input type="number" value={form.area_total} onChange={set('area_total')} /></div>
@@ -177,7 +169,6 @@ export default function ProjectFormPage() {
         </div>
       </Card>
 
-      {/* ── ГИП ── */}
       <Card title="ГИП">
         <div className="grid grid-cols-2 gap-4">
           <div><Label>ФИО ГИП</Label><Input value={form.gip_name} onChange={set('gip_name')} /></div>
@@ -186,12 +177,12 @@ export default function ProjectFormPage() {
       </Card>
 
       <div className="flex justify-end gap-2">
-        <button type="button" onClick={() => nav(isEdit ? `/projects/${id}` : '/projects')}
-          className="border border-gray-200 text-gray-600 text-sm px-4 py-2 rounded-xl hover:bg-gray-50 transition-colors">
+        <button type="button" onClick={() => nav(cancelPath)}
+          className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all">
           Отмена
         </button>
         <button type="submit" disabled={saving}
-          className="bg-[#C0392B] hover:bg-[#96281B] text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm transition-all disabled:opacity-60">
+          className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-[#C0392B] hover:bg-[#96281B] text-white shadow-sm transition-all disabled:opacity-60">
           {saving ? 'Сохранение...' : 'Сохранить'}
         </button>
       </div>

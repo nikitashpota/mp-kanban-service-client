@@ -90,6 +90,27 @@ export const importPassportXlsx = (projectId, file) => {
   return api.post(`/import/${projectId}/xlsx`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
 };
 
+// ── Pending approvals ─────────────────────────────────────────
+// ГИП предлагает дату (пишет в execution_actual_pending)
+export const proposeDate = (stageId, date, slot = 1) =>
+  api.post(`/pending/propose/${stageId}`, { date, slot }).then(r => r.data);
+
+// РП утверждает предложенную дату
+export const approveDate = (stageId, slot = 1) =>
+  api.post(`/pending/approve/${stageId}`, { slot }).then(r => r.data);
+
+// РП отклоняет предложенную дату
+export const rejectDate = (stageId, slot = 1) =>
+  api.post(`/pending/reject/${stageId}`, { slot }).then(r => r.data);
+
+// Получить все ожидающие утверждения для проекта
+export const getPending = (projectId) =>
+  api.get(`/pending/${projectId}`).then(r => r.data);
+
+// Получить счётчик pending по всем проектам (для бейджа)
+export const getPendingAll = () =>
+  api.get('/pending/count/all').then(r => r.data);
+
 // ── Analytics ─────────────────────────────────────────────────
 export const getAnalytics = (typeId) =>
   api.get('/analytics', { params: typeId ? { type_id: typeId } : {} }).then(r => r.data);

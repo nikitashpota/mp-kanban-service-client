@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   getKanban, patchKanbanStage,
-  getProjectTypes, createProjectType, deleteProjectType, assignProjectType
+  getProjectTypes, createProjectType, deleteProjectType, assignProjectType,
+  approveDate, rejectDate,
 } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { usePersistentState } from '../hooks/usePersistentState';
@@ -13,71 +14,26 @@ const exportToPDF = (tableEl, typeName) => {
   const dateStr = new Date().toLocaleDateString('ru-RU');
   const styleLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
     .map(el => el.outerHTML).join('\n');
-
   printWindow.document.write(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Сводный канбан — ${typeName}</title>
-  ${styleLinks}
-  <style>
-    @page { size: A4 landscape; margin: 8mm; }
-    body { background: white !important; padding: 0 !important; margin: 0 !important; font-family: 'Inter', Arial, sans-serif; }
-    .print-header { display: flex !important; justify-content: space-between; align-items: center; background: #C0392B !important; color: white !important; padding: 6px 12px; margin-bottom: 6px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .print-header-title { font-size: 13px; font-weight: 700; }
-    .print-header-meta { font-size: 10px; opacity: 0.9; }
-    .print-legend { display: flex !important; align-items: center; gap: 14px; margin-bottom: 6px; font-size: 9px; flex-wrap: wrap; }
-    .print-legend-item { display: flex; align-items: center; gap: 4px; }
-    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    .overflow-auto, .overflow-x-auto, .overflow-hidden { overflow: visible !important; }
-    td[style*="height: 1px"], td[style*="height:1px"] { height: auto !important; padding: 0 !important; }
-    .dual-cell-wrapper { display: flex !important; flex-direction: column !important; width: 100% !important; height: auto !important; min-height: 0 !important; }
-    .dual-cell-wrapper > div { flex: 1 1 50% !important; display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; min-height: 40px !important; padding: 4px 2px !important; border-bottom: 1px solid #e5e7eb !important; }
-    .dual-cell-wrapper > div:last-child { border-bottom: none !important; }
-    .flex-1, .min-h-0 { flex: none !important; height: auto !important; }
-    td .text-left, td .leading-snug { text-align: left !important; }
-    td .text-center { text-align: center !important; }
-    td .print-hide { display: none !important; }
-    table { font-size: 9px !important; width: 100% !important; border-collapse: collapse !important; }
-    th, td { font-size: 9px !important; padding: 2px 3px !important; border: 1px solid #d1d5db !important; vertical-align: middle !important; text-align: center !important; }
-    th { background: #f9fafb !important; font-weight: 600 !important; }
-    .bg-green-50 { background-color: #f0fdf4 !important; }
-    .bg-red-50   { background-color: #fef2f2 !important; }
-    .bg-yellow-50{ background-color: #fefce8 !important; }
-    .bg-blue-50  { background-color: #eff6ff !important; }
-    .bg-orange-50{ background-color: #fff7ed !important; }
-    svg { display: inline-block !important; }
-    tr { page-break-inside: avoid; }
-    thead { display: table-header-group; }
-  </style>
-</head>
-<body>
-  <div class="print-header">
-    <span class="print-header-title">Сводный канбан — ${typeName}</span>
-    <span class="print-header-meta">${dateStr}</span>
-  </div>
-  <div class="print-legend" id="legend"></div>
-  <div style="overflow:visible">${tableEl.outerHTML}</div>
-  <script>
-    const statusColors = {
-      done: {color:'#16a34a', label:'Исполнено'},
-      not_provided: {color:'#dc2626', label:'Не обеспечено'},
-      needs_correction: {color:'#d97706', label:'Требует корректировки'},
-      in_progress: {color:'#2563eb', label:'В работе'},
-      not_required: {color:'#6b7280', label:'Не требуется'},
-      developed: {color:'#0891b2', label:'Разработано'},
-    };
-    const legend = document.getElementById('legend');
-    Object.values(statusColors).forEach(({color, label}) => {
-      const item = document.createElement('span');
-      item.className = 'print-legend-item';
-      item.innerHTML = '<svg width="14" height="14" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="' + color + '"/></svg> ' + label;
-      legend.appendChild(item);
-    });
-    window.onload = function() { setTimeout(function(){ window.print(); }, 600); };
-  </script>
-</body>
-</html>`);
+<html><head><meta charset="utf-8"><title>Сводный канбан — ${typeName}</title>${styleLinks}
+<style>
+@page { size: A4 landscape; margin: 8mm; }
+body { background: white !important; padding: 0; margin: 0; font-family: 'Inter', Arial, sans-serif; }
+.print-header { display: flex !important; justify-content: space-between; align-items: center; background: #C0392B !important; color: white !important; padding: 6px 12px; margin-bottom: 6px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+* { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+.overflow-auto, .overflow-x-auto, .overflow-hidden { overflow: visible !important; }
+table { font-size: 9px !important; width: 100% !important; border-collapse: collapse !important; }
+th, td { font-size: 9px !important; padding: 2px 3px !important; border: 1px solid #d1d5db !important; vertical-align: middle !important; text-align: center !important; }
+th { background: #f9fafb !important; font-weight: 600 !important; }
+tr { page-break-inside: avoid; }
+thead { display: table-header-group; }
+.pending-chip { display: none !important; }
+</style>
+</head><body>
+<div class="print-header"><span style="font-size:13px;font-weight:700">Сводный канбан — ${typeName}</span><span style="font-size:10px">${dateStr}</span></div>
+<div style="overflow:visible">${tableEl.outerHTML}</div>
+<script>window.onload=function(){setTimeout(function(){window.print();},600);}</script>
+</body></html>`);
   printWindow.document.close();
 };
 
@@ -122,44 +78,12 @@ const GROUP_COLORS = {
 
 const StatusIcon = ({ type, size = 18 }) => {
   const icons = {
-    done: (
-      <svg width={size} height={size} viewBox="0 0 20 20" fill="none">
-        <circle cx="10" cy="10" r="9" fill="#16a34a"/>
-        <path d="M5.5 10l3 3 5.5-6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
-    ),
-    not_provided: (
-      <svg width={size} height={size} viewBox="0 0 20 20" fill="none">
-        <circle cx="10" cy="10" r="9" fill="#dc2626"/>
-        <path d="M7 7l6 6M13 7l-6 6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round"/>
-      </svg>
-    ),
-    needs_correction: (
-      <svg width={size} height={size} viewBox="0 0 20 20" fill="none">
-        <circle cx="10" cy="10" r="9" fill="#d97706"/>
-        <path d="M10 5.5v5" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
-        <circle cx="10" cy="13.5" r="1.2" fill="#fff"/>
-      </svg>
-    ),
-    in_progress: (
-      <svg width={size} height={size} viewBox="0 0 20 20" fill="none">
-        <circle cx="10" cy="10" r="9" stroke="#2563eb" strokeWidth="2" strokeDasharray="28 8" strokeLinecap="round"/>
-        <circle cx="10" cy="10" r="4" fill="#2563eb" opacity="0.25"/>
-        <circle cx="10" cy="10" r="2" fill="#2563eb"/>
-      </svg>
-    ),
-    not_required: (
-      <svg width={size} height={size} viewBox="0 0 20 20" fill="none">
-        <circle cx="10" cy="10" r="9" stroke="#9ca3af" strokeWidth="1.5"/>
-        <path d="M6.5 10h7" stroke="#9ca3af" strokeWidth="1.8" strokeLinecap="round"/>
-      </svg>
-    ),
-    developed: (
-      <svg width={size} height={size} viewBox="0 0 20 20" fill="none">
-        <rect x="2" y="4" width="16" height="12" rx="2" fill="#0d9488"/>
-        <path d="M5 8h10M5 11h7" stroke="#fff" strokeWidth="1.5" strokeLinecap="round"/>
-      </svg>
-    ),
+    done: (<svg width={size} height={size} viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" fill="#16a34a"/><path d="M5.5 10l3 3 5.5-6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>),
+    not_provided: (<svg width={size} height={size} viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" fill="#dc2626"/><path d="M7 7l6 6M13 7l-6 6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round"/></svg>),
+    needs_correction: (<svg width={size} height={size} viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" fill="#d97706"/><path d="M10 5.5v5" stroke="#fff" strokeWidth="2" strokeLinecap="round"/><circle cx="10" cy="13.5" r="1.2" fill="#fff"/></svg>),
+    in_progress: (<svg width={size} height={size} viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="#2563eb" strokeWidth="2" strokeDasharray="28 8" strokeLinecap="round"/><circle cx="10" cy="10" r="4" fill="#2563eb" opacity="0.25"/><circle cx="10" cy="10" r="2" fill="#2563eb"/></svg>),
+    not_required: (<svg width={size} height={size} viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="#9ca3af" strokeWidth="1.5"/><path d="M6.5 10h7" stroke="#9ca3af" strokeWidth="1.8" strokeLinecap="round"/></svg>),
+    developed: (<svg width={size} height={size} viewBox="0 0 20 20" fill="none"><rect x="2" y="4" width="16" height="12" rx="2" fill="#0d9488"/><path d="M5 8h10M5 11h7" stroke="#fff" strokeWidth="1.5" strokeLinecap="round"/></svg>),
   };
   return icons[type] || null;
 };
@@ -172,13 +96,57 @@ const STATUSES = [
   { key: 'not_required',     label: 'Не требуется',          bg: 'bg-gray-50',   text: 'text-gray-500',   border: 'border-gray-300'  },
   { key: 'developed',        label: 'Разработано',           bg: 'bg-teal-50',   text: 'text-teal-700',   border: 'border-teal-300'  },
 ];
-
 const STATUS_MAP = Object.fromEntries(STATUSES.map(s => [s.key, s]));
 
 function fmtDate(d) {
   if (!d) return null;
   const dt = new Date(d);
   return `${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}.${String(dt.getFullYear()).slice(-2)}`;
+}
+
+// ── Pending chip — показывает 🕐 и кнопки утверждения ─────────
+function PendingChip({ pendingDate, pendingByName, stageId, slot, canApprove, onDone }) {
+  const [loading, setLoading] = useState(false);
+  if (!pendingDate) return null;
+
+  const handle = async (action, e) => {
+    e.stopPropagation();
+    setLoading(true);
+    try {
+      if (action === 'approve') await approveDate(stageId, slot);
+      else await rejectDate(stageId, slot);
+      onDone?.();
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="pending-chip mt-1.5 w-full bg-amber-50 border border-amber-200 rounded-lg p-1.5 flex flex-col items-center gap-1"
+      title={`Предложено: ${fmtDate(pendingDate)}${pendingByName ? ` — ${pendingByName}` : ''}`}>
+      {/* Icon + date centered */}
+      <div className="flex items-center justify-center gap-1">
+        <span className="text-amber-400 text-[10px] leading-none">🕐</span>
+        <span className="text-[10px] font-bold text-amber-700 leading-none tracking-tight">{fmtDate(pendingDate)}</span>
+      </div>
+      {/* Author name — truncated */}
+      {pendingByName && (
+        <div className="w-full text-center text-[8px] text-gray-400 leading-none truncate px-0.5">
+          {pendingByName.split(' ').slice(0, 2).join(' ')}
+        </div>
+      )}
+      {canApprove && (
+        <div className="flex gap-1 w-full mt-0.5">
+          <button disabled={loading} onClick={e => handle('approve', e)}
+            className="flex-1 text-[9px] font-bold bg-green-500 text-white rounded-md py-1 hover:bg-green-600 disabled:opacity-50 transition-all leading-none">
+            ✓
+          </button>
+          <button disabled={loading} onClick={e => handle('reject', e)}
+            className="flex-1 text-[9px] font-bold bg-white border border-red-300 text-red-500 rounded-md py-1 hover:bg-red-50 disabled:opacity-50 transition-all leading-none">
+            ✕
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Shared dual cell logic hook ───────────────────────────────
@@ -206,9 +174,8 @@ function useDualCell(stage, onUpdate, projectId, stageNum, date1Field = 'executi
   const saveDate = async () => {
     if (!stage && !projectId) return;
     const fieldName = dateEdit === 1 ? (date1Field || 'execution_actual') : (date2Field || 'execution_actual_2');
-    const field = { [fieldName]: dateVal };
     setDateEdit(null);
-    await onUpdate(stage?.id, field, projectId, stageNum);
+    await onUpdate(stage?.id, { [fieldName]: dateVal }, projectId, stageNum);
   };
 
   const st1 = STATUS_MAP[safeStage.kanban_status];
@@ -247,14 +214,14 @@ function useDualCell(stage, onUpdate, projectId, stageNum, date1Field = 'executi
   return { ref, open1, setOpen1, open2, setOpen2, dateEdit, setDateEdit, dateVal, setDateVal, st1, st2, date1, date2, pickStatus, saveDate, Picker, DateOverlay, safeStage };
 }
 
-// ── DualStatusCell — с метками 1эт/2эт (изыскания) ───────────
-function DualStatusCell({ stage, projectId, stageNum, isAdmin, onUpdate, groupBorderStyle = {}, date1Field, date2Field }) {
-  const { ref, open1, setOpen1, open2, setOpen2, dateEdit, setDateEdit, dateVal, st1, st2, date1, date2, Picker, DateOverlay, safeStage } = useDualCell(stage, onUpdate, projectId, stageNum, date1Field, date2Field);
+// ── DualStatusCell ────────────────────────────────────────────
+function DualStatusCell({ stage, projectId, stageNum, isAdmin, onUpdate, onReload, canApprove, groupBorderStyle = {}, date1Field, date2Field }) {
+  const { ref, open1, setOpen1, open2, setOpen2, dateEdit, setDateEdit, dateVal, setDateVal, st1, st2, date1, date2, Picker, DateOverlay, safeStage } = useDualCell(stage, onUpdate, projectId, stageNum, date1Field, date2Field);
 
-  const SubRow = ({ which, st, date, open, setOpen }) => (
+  const SubRow = ({ which, st, date, open, setOpen, pendingDate, pendingByName, slot }) => (
     <div
-      className={`w-full flex-1 flex flex-col items-center justify-center border-b border-gray-100 last:border-0 ${st ? st.bg : ''} ${isAdmin ? 'cursor-pointer hover:brightness-95' : ''}`}
-      style={{ gap: '0.5rem', paddingTop: '6px', paddingBottom: '6px' }}
+      className={`w-full flex-1 flex flex-col items-center justify-center border-b border-gray-100 last:border-0 ${st ? st.bg : ''} ${isAdmin ? 'cursor-pointer hover:brightness-95' : ''} px-1`}
+      style={{ gap: '0.4rem', paddingTop: '5px', paddingBottom: '5px' }}
       onClick={() => isAdmin && setOpen(o => !o)}>
       <span className="text-[9px] text-gray-400 font-bold leading-none">{which}эт</span>
       {st ? <StatusIcon type={st.key} size={16} /> : <span className="text-gray-200 text-base">·</span>}
@@ -263,14 +230,17 @@ function DualStatusCell({ stage, projectId, stageNum, isAdmin, onUpdate, groupBo
         onClick={e => { if (isAdmin) { e.stopPropagation(); setDateEdit(which); setDateVal((date || '').slice(0, 10)); }}}>
         {date ? fmtDate(date) : (isAdmin ? 'дата' : '—')}
       </span>
+      {pendingDate && (
+        <PendingChip pendingDate={pendingDate} pendingByName={pendingByName} stageId={stage?.id} slot={slot} canApprove={canApprove} onDone={onReload} />
+      )}
     </div>
   );
 
   return (
     <td className="border border-gray-100 p-0 relative" style={{ height: '1px', padding: 0, ...groupBorderStyle }} ref={ref}>
       <div style={{ height: '100%', minHeight: '100%' }} className="flex flex-col dual-cell-wrapper">
-        <SubRow which={1} st={st1} date={date1} open={open1} setOpen={setOpen1} />
-        <SubRow which={2} st={st2} date={date2} open={open2} setOpen={setOpen2} />
+        <SubRow which={1} st={st1} date={date1} open={open1} setOpen={setOpen1} pendingDate={stage?.execution_actual_pending} pendingByName={stage?.pending_by_name} slot={1} />
+        <SubRow which={2} st={st2} date={date2} open={open2} setOpen={setOpen2} pendingDate={stage?.execution_actual_pending_2} pendingByName={stage?.pending_by_name} slot={2} />
       </div>
       {open1 && <Picker which={1} currentKey={stage?.kanban_status} />}
       {open2 && (
@@ -283,8 +253,7 @@ function DualStatusCell({ stage, projectId, stageNum, isAdmin, onUpdate, groupBo
             </button>
           ))}
           <div className="border-t border-gray-100 mt-1 pt-1">
-            <button onClick={async () => { setOpen2(false); await onUpdate(stage?.id, { kanban_status_2: null }, projectId, stageNum); }}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50">✕ Очистить</button>
+            <button onClick={async () => { setOpen2(false); await onUpdate(stage?.id, { kanban_status_2: null }, projectId, stageNum); }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50">✕ Очистить</button>
           </div>
         </div>
       )}
@@ -293,14 +262,14 @@ function DualStatusCell({ stage, projectId, stageNum, isAdmin, onUpdate, groupBo
   );
 }
 
-// ── DualSimpleCell — без меток (АПР, АФК) ────────────────────
-function DualSimpleCell({ stage, projectId, stageNum, isAdmin, onUpdate, groupBorderStyle = {}, date1Field, date2Field }) {
+// ── DualSimpleCell ────────────────────────────────────────────
+function DualSimpleCell({ stage, projectId, stageNum, isAdmin, onUpdate, onReload, canApprove, groupBorderStyle = {}, date1Field, date2Field }) {
   const { ref, open1, setOpen1, open2, setOpen2, dateEdit, setDateEdit, dateVal, setDateVal, st1, st2, date1, date2, Picker, DateOverlay, safeStage } = useDualCell(stage, onUpdate, projectId, stageNum, date1Field, date2Field);
 
-  const SimpleRow = ({ which, st, date, open, setOpen }) => (
+  const SimpleRow = ({ which, st, date, open, setOpen, pendingDate, pendingByName, slot }) => (
     <div
-      className={`w-full flex-1 flex flex-col items-center justify-center border-b border-gray-100 last:border-0 ${st ? st.bg : ''} ${isAdmin ? 'cursor-pointer hover:brightness-95' : ''}`}
-      style={{ gap: '0.5rem', paddingTop: '6px', paddingBottom: '6px' }}
+      className={`w-full flex-1 flex flex-col items-center justify-center border-b border-gray-100 last:border-0 ${st ? st.bg : ''} ${isAdmin ? 'cursor-pointer hover:brightness-95' : ''} px-1`}
+      style={{ gap: '0.4rem', paddingTop: '5px', paddingBottom: '5px' }}
       onClick={() => isAdmin && setOpen(o => !o)}>
       {st ? <StatusIcon type={st.key} size={17} /> : <span className="text-gray-200 text-base">·</span>}
       <span
@@ -308,14 +277,17 @@ function DualSimpleCell({ stage, projectId, stageNum, isAdmin, onUpdate, groupBo
         onClick={e => { if (isAdmin) { e.stopPropagation(); setDateEdit(which); setDateVal((date || '').slice(0, 10)); }}}>
         {date ? fmtDate(date) : (isAdmin ? 'дата' : '—')}
       </span>
+      {pendingDate && (
+        <PendingChip pendingDate={pendingDate} pendingByName={pendingByName} stageId={stage?.id} slot={slot} canApprove={canApprove} onDone={onReload} />
+      )}
     </div>
   );
 
   return (
     <td className="border border-gray-100 p-0 relative" style={{ height: '1px', padding: 0, ...groupBorderStyle }} ref={ref}>
       <div style={{ height: '100%', minHeight: '100%' }} className="flex flex-col dual-cell-wrapper">
-        <SimpleRow which={1} st={st1} date={date1} open={open1} setOpen={setOpen1} />
-        <SimpleRow which={2} st={st2} date={date2} open={open2} setOpen={setOpen2} />
+        <SimpleRow which={1} st={st1} date={date1} open={open1} setOpen={setOpen1} pendingDate={stage?.execution_actual_pending} pendingByName={stage?.pending_by_name} slot={1} />
+        <SimpleRow which={2} st={st2} date={date2} open={open2} setOpen={setOpen2} pendingDate={stage?.execution_actual_pending_2} pendingByName={stage?.pending_by_name} slot={2} />
       </div>
       {open1 && <Picker which={1} currentKey={safeStage.kanban_status} />}
       {open2 && (
@@ -328,8 +300,7 @@ function DualSimpleCell({ stage, projectId, stageNum, isAdmin, onUpdate, groupBo
             </button>
           ))}
           <div className="border-t border-gray-100 mt-1 pt-1">
-            <button onClick={async () => { setOpen2(false); await onUpdate(stage?.id, { kanban_status_2: null }, projectId, stageNum); }}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50">✕ Очистить</button>
+            <button onClick={async () => { setOpen2(false); await onUpdate(stage?.id, { kanban_status_2: null }, projectId, stageNum); }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50">✕ Очистить</button>
           </div>
         </div>
       )}
@@ -339,7 +310,7 @@ function DualSimpleCell({ stage, projectId, stageNum, isAdmin, onUpdate, groupBo
 }
 
 // ── StatusCell ────────────────────────────────────────────────
-function StatusCell({ stage, projectId, stageNum, isAdmin, onUpdate, groupBorderStyle = {} }) {
+function StatusCell({ stage, projectId, stageNum, isAdmin, onUpdate, onReload, canApprove, groupBorderStyle = {} }) {
   const [open, setOpen] = useState(false);
   const [dateEdit, setDateEdit] = useState(false);
   const [dateVal, setDateVal] = useState('');
@@ -361,6 +332,8 @@ function StatusCell({ stage, projectId, stageNum, isAdmin, onUpdate, groupBorder
 
   const st = STATUS_MAP[stage?.kanban_status];
   const date = stage?.execution_actual;
+  const pendingDate = stage?.execution_actual_pending;
+  const pendingByName = stage?.pending_by_name;
 
   const handleStatusPick = async (statusKey) => {
     setOpen(false);
@@ -378,7 +351,7 @@ function StatusCell({ stage, projectId, stageNum, isAdmin, onUpdate, groupBorder
         <div
           onClick={() => isAdmin && setOpen(o => !o)}
           className={`flex flex-col items-center justify-center py-2 px-1 ${isAdmin ? 'cursor-pointer hover:brightness-95' : ''}`}
-          style={{ gap: '0.75rem' }}
+          style={{ gap: '0.6rem' }}
         >
           {st ? <StatusIcon type={stage?.kanban_status} size={20} /> : <span className="text-gray-200 text-lg">·</span>}
           {date ? (
@@ -390,6 +363,18 @@ function StatusCell({ stage, projectId, stageNum, isAdmin, onUpdate, groupBorder
             <span className="text-[10px] text-gray-300 leading-none hover:text-blue-500 hover:underline cursor-pointer transition-colors"
               onClick={e => { e.stopPropagation(); setDateEdit(true); setDateVal(''); }}>дата</span>
           ) : null}
+
+          {/* Pending chip */}
+          {pendingDate && (
+            <PendingChip
+              pendingDate={pendingDate}
+              pendingByName={pendingByName}
+              stageId={stage?.id}
+              slot={1}
+              canApprove={canApprove}
+              onDone={onReload}
+            />
+          )}
         </div>
 
         {open && (
@@ -433,15 +418,12 @@ function TypesModal({ types, onClose, onCreated, onDeleted }) {
   const [name, setName] = useState('');
   const [color, setColor] = useState('#6b7280');
   const [saving, setSaving] = useState(false);
-
   const save = async () => {
     if (!name.trim()) return;
     setSaving(true);
     try { const t = await createProjectType({ name, color }); onCreated(t); setName(''); }
-    catch {}
-    finally { setSaving(false); }
+    catch {} finally { setSaving(false); }
   };
-
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
@@ -454,8 +436,7 @@ function TypesModal({ types, onClose, onCreated, onDeleted }) {
             <input className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#C0392B]"
               placeholder="Название типа..." value={name} onChange={e => setName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && save()} />
-            <input type="color" className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer p-0.5"
-              value={color} onChange={e => setColor(e.target.value)} />
+            <input type="color" className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer p-0.5" value={color} onChange={e => setColor(e.target.value)} />
             <button onClick={save} disabled={saving || !name.trim()}
               className="px-4 py-2 bg-[#C0392B] hover:bg-[#96281B] text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-50">
               + Добавить
@@ -482,10 +463,8 @@ function SmartSortModal({ cols, onApply, onClose, initial }) {
   const [selCols, setSelCols] = useState(initial?.cols || []);
   const [selStatuses, setSelStatuses] = useState(initial?.statuses || []);
   const [dateDir, setDateDir] = useState(initial?.dateDir || 'asc');
-
   const toggleCol = (key) => setSelCols(p => p.includes(key) ? p.filter(k => k !== key) : [...p, key]);
   const toggleStatus = (key) => setSelStatuses(p => p.includes(key) ? p.filter(k => k !== key) : [...p, key]);
-
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -495,79 +474,47 @@ function SmartSortModal({ cols, onApply, onClose, initial }) {
         </div>
         <div className="p-6 space-y-5">
           <div>
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">1. Выберите столбцы (порядок имеет значение)</div>
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">1. Выберите столбцы</div>
             <div className="flex flex-wrap gap-2">
               {cols.map(col => (
                 <button key={col.key} onClick={() => toggleCol(col.key)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl border transition-all ${
-                    selCols.includes(col.key) ? 'bg-[#C0392B] text-white border-[#C0392B]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
-                  }`}>
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl border transition-all ${selCols.includes(col.key) ? 'bg-[#C0392B] text-white border-[#C0392B]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}`}>
                   {col.label}
-                  {selCols.includes(col.key) && (
-                    <span className="ml-0.5 text-[10px] bg-white/30 text-white rounded-full px-1.5 font-bold">
-                      {selCols.indexOf(col.key) + 1}
-                    </span>
-                  )}
+                  {selCols.includes(col.key) && <span className="ml-0.5 text-[10px] bg-white/30 text-white rounded-full px-1.5 font-bold">{selCols.indexOf(col.key) + 1}</span>}
                 </button>
               ))}
             </div>
-            {selCols.length > 1 && (
-              <div className="mt-2 text-[10px] text-gray-400">
-                Порядок: {selCols.map(k => cols.find(c => c.key === k)?.label).join(' → ')}
-              </div>
-            )}
           </div>
-
           <div>
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">2. Приоритет статусов (порядок имеет значение)</div>
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">2. Приоритет статусов</div>
             <div className="flex flex-wrap gap-2">
               {STATUSES.map(s => (
                 <button key={s.key} onClick={() => toggleStatus(s.key)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl border transition-all ${
-                    selStatuses.includes(s.key) ? 'border-gray-400 bg-gray-50' : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
-                  }`}>
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl border transition-all ${selStatuses.includes(s.key) ? 'border-gray-400 bg-gray-50' : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'}`}>
                   <StatusIcon type={s.key} size={13} />
                   <span className={selStatuses.includes(s.key) ? s.text : 'text-gray-400'}>{s.label}</span>
-                  {selStatuses.includes(s.key) && (
-                    <span className="ml-1 text-[10px] bg-gray-200 text-gray-600 rounded-full px-1.5 font-bold">
-                      {selStatuses.indexOf(s.key) + 1}
-                    </span>
-                  )}
+                  {selStatuses.includes(s.key) && <span className="ml-1 text-[10px] bg-gray-200 text-gray-600 rounded-full px-1.5 font-bold">{selStatuses.indexOf(s.key) + 1}</span>}
                 </button>
               ))}
             </div>
-            {selStatuses.length > 1 && (
-              <div className="mt-2 text-[10px] text-gray-400">
-                Сортировка: {selStatuses.map(k => STATUSES.find(s => s.key === k)?.label).join(' → ')}
-              </div>
-            )}
           </div>
-
           <div>
             <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">3. Сортировка по дате</div>
             <div className="flex gap-2">
-              {[['asc','По возрастанию (ранние первыми)'],['desc','По убыванию (поздние первыми)'],['none','Не сортировать']].map(([v, label]) => (
+              {[['asc','По возрастанию'],['desc','По убыванию'],['none','Не сортировать']].map(([v, label]) => (
                 <button key={v} onClick={() => setDateDir(v)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-xl border transition-all ${
-                    dateDir === v ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
-                  }`}>
+                  className={`px-3 py-1.5 text-xs font-medium rounded-xl border transition-all ${dateDir === v ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}`}>
                   {label}
                 </button>
               ))}
             </div>
           </div>
         </div>
-
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50">
-          <button onClick={() => onApply(null)} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
-            Сбросить сортировку
-          </button>
+          <button onClick={() => onApply(null)} className="text-xs text-gray-400 hover:text-gray-600">Сбросить сортировку</button>
           <div className="flex gap-2">
-            <button onClick={onClose} className="px-4 py-2 text-xs font-medium rounded-xl bg-white border border-gray-200 text-gray-600 hover:bg-gray-50">
-              Отмена
-            </button>
-            <button
-              onClick={() => onApply(selCols.length > 0 ? { cols: selCols, statuses: selStatuses, dateDir } : null)}
+            <button onClick={onClose} className="px-4 py-2 text-xs font-medium rounded-xl bg-white border border-gray-200 text-gray-600 hover:bg-gray-50">Отмена</button>
+            <button onClick={() => onApply(selCols.length > 0 ? { cols: selCols, statuses: selStatuses, dateDir } : null)}
               className="px-4 py-2 text-xs font-semibold rounded-xl bg-[#C0392B] hover:bg-[#a93226] text-white shadow-sm">
               Применить
             </button>
@@ -599,8 +546,9 @@ export default function KanbanPage() {
   const [smartSortModal, setSmartSortModal] = useState(false);
   const [typesModal, setTypesModal] = useState(false);
   const [assigningId, setAssigningId] = useState(null);
+  const [showPendingOnly, setShowPendingOnly] = useState(false);
 
-  // isAdmin в ячейках канбана = canApprove (РП + admin могут менять статусы)
+  // canApprove = РП+admin могут менять статусы в канбане
   const cellAdmin = canApprove;
 
   const load = async () => {
@@ -610,8 +558,7 @@ export default function KanbanPage() {
       setRows(data);
       setTypes(typesData);
       setFilterType(prev => (!prev && typesData.length > 0) ? String(typesData[0].id) : prev);
-    } catch {}
-    finally { setLoading(false); }
+    } catch {} finally { setLoading(false); }
   };
 
   useEffect(() => { load(); }, []);
@@ -640,9 +587,23 @@ export default function KanbanPage() {
     setDashFilter(null);
   };
 
+  // Count total pending across all visible rows
+  const totalPending = rows.reduce((acc, p) => {
+    Object.values(p.stages || {}).forEach(s => {
+      if (s.execution_actual_pending) acc++;
+      if (s.execution_actual_pending_2) acc++;
+    });
+    return acc;
+  }, 0);
+
   let visible = sortProjects(
     rows.filter(p => {
       if (dashFilter) return dashFilter.ids.includes(p.id);
+      // Pending-only filter: show only projects with at least one pending stage
+      if (showPendingOnly) {
+        const hasPending = Object.values(p.stages || {}).some(s => s.execution_actual_pending || s.execution_actual_pending_2);
+        if (!hasPending) return false;
+      }
       if (showProblematic && p.issue_count === 0) return false;
       if (filterType && String(p.project_type_id) !== filterType) return false;
       if (search && !p.name?.toLowerCase().includes(search.toLowerCase())) return false;
@@ -665,13 +626,9 @@ export default function KanbanPage() {
         const statusScore = (s) => {
           if (!s) return 99;
           const st = s.kanban_status;
-          if (smartSort.statuses?.length > 0) {
-            const idx = smartSort.statuses.indexOf(st);
-            return idx >= 0 ? idx : 98;
-          }
+          if (smartSort.statuses?.length > 0) { const idx = smartSort.statuses.indexOf(st); return idx >= 0 ? idx : 98; }
           const order = ['not_provided','needs_correction','in_progress','developed','done','not_required'];
-          const i = order.indexOf(st);
-          return i >= 0 ? i : 97;
+          const i = order.indexOf(st); return i >= 0 ? i : 97;
         };
         const scoreDiff = statusScore(sa) - statusScore(sb);
         if (scoreDiff !== 0) return scoreDiff;
@@ -696,19 +653,6 @@ export default function KanbanPage() {
   return (
     <div className="print-kanban-root flex flex-col h-full" style={{ height: 'calc(100vh - 56px - 48px)' }}>
 
-      <div className="print-header" style={{ display: 'none' }}>
-        <span className="print-header-title">Сводный канбан — {activeType?.name || 'Все'}</span>
-        <span className="print-header-meta">{new Date().toLocaleDateString('ru-RU')}</span>
-      </div>
-      <div className="print-legend" style={{ display: 'none' }}>
-        {STATUSES.map(s => (
-          <span key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <StatusIcon type={s.key} size={12} />
-            <span className={s.text}>{s.label}</span>
-          </span>
-        ))}
-      </div>
-
       {/* Type tabs */}
       {types.length > 0 && !dashFilter && (
         <div className="mb-5 print-hide">
@@ -726,14 +670,35 @@ export default function KanbanPage() {
       )}
 
       {/* Header */}
-      <div className="print-hide flex items-center justify-between mb-5 gap-3 flex-wrap">
+      <div className="print-hide flex items-center justify-between mb-4 gap-3 flex-wrap">
         <div>
           <h1 className="text-lg font-bold text-gray-900">Сводный канбан</h1>
-          <p className="text-sm text-gray-400 mt-0.5">{visible.length} объект(ов)</p>
+          <div className="flex items-center gap-3 mt-0.5">
+            <p className="text-sm text-gray-400">{visible.length} объект(ов)</p>
+            {/* Pending badge — кликабельный фильтр для PM/admin */}
+            {canApprove && totalPending > 0 && (
+              <button
+                onClick={() => setShowPendingOnly(p => !p)}
+                className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-xl border transition-all ${
+                  showPendingOnly
+                    ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                    : 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200'
+                }`}>
+                🕐 {totalPending} ожидают утверждения
+                {showPendingOnly && <span className="ml-1 text-[10px] opacity-80">× сбросить</span>}
+              </button>
+            )}
+          </div>
           {dashFilter && (
             <div className="flex items-center gap-2 mt-1.5">
               <span className="text-xs font-semibold text-white bg-[#C0392B] px-2.5 py-1 rounded-full">{dashFilter.label}</span>
-              <button onClick={clearDashFilter} className="text-xs text-gray-400 hover:text-gray-700 transition-colors">× сбросить фильтр дашборда</button>
+              <button onClick={clearDashFilter} className="text-xs text-gray-400 hover:text-gray-700 transition-colors">× сбросить фильтр</button>
+            </div>
+          )}
+          {showPendingOnly && !dashFilter && (
+            <div className="flex items-center gap-2 mt-1.5">
+              <span className="text-xs font-semibold text-white bg-amber-500 px-2.5 py-1 rounded-full">🕐 Только с ожиданием</span>
+              <button onClick={() => setShowPendingOnly(false)} className="text-xs text-gray-400 hover:text-gray-700 transition-colors">× сбросить</button>
             </div>
           )}
         </div>
@@ -744,23 +709,19 @@ export default function KanbanPage() {
               <input
                 className="px-3 py-1.5 text-xs border border-gray-200 rounded-xl bg-white text-gray-700 focus:outline-none focus:border-[#C0392B] transition-all w-52"
                 placeholder="Поиск по названию..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
+                value={search} onChange={e => setSearch(e.target.value)}
               />
               <button onClick={() => setShowProblematic(p => !p)}
                 className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all ${showProblematic ? 'bg-red-500 text-white border-red-500' : 'bg-white text-gray-500 border-gray-200 hover:border-red-400 hover:text-red-600'}`}>
                 ⚠ Проблемные
               </button>
               <button onClick={() => setSmartSortModal(true)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all ${
-                  smartSort ? 'bg-[#C0392B] text-white border-[#C0392B]' : 'bg-white text-gray-500 border-gray-200 hover:border-[#C0392B] hover:text-[#C0392B]'
-                }`}>
+                className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all ${smartSort ? 'bg-[#C0392B] text-white border-[#C0392B]' : 'bg-white text-gray-500 border-gray-200 hover:border-[#C0392B] hover:text-[#C0392B]'}`}>
                 {smartSort ? `⇅ Сортировка (${smartSort.cols.length})` : '⇅ Сортировка'}
               </button>
               {smartSort && (
                 <button onClick={() => setSmartSort(null)}
-                  className="px-2 py-1.5 text-xs font-semibold rounded-xl border border-gray-200 bg-white text-gray-400 hover:text-red-500 hover:border-red-300 transition-all"
-                  title="Сбросить сортировку">✕</button>
+                  className="px-2 py-1.5 text-xs font-semibold rounded-xl border border-gray-200 bg-white text-gray-400 hover:text-red-500 hover:border-red-300 transition-all">✕</button>
               )}
             </>
           )}
@@ -789,6 +750,12 @@ export default function KanbanPage() {
             <span>{s.label}</span>
           </div>
         ))}
+        {canApprove && (
+          <div className="flex items-center gap-1.5 text-xs text-amber-600">
+            <span>🕐</span>
+            <span>Ожидает утверждения РП</span>
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -839,8 +806,11 @@ export default function KanbanPage() {
                 {visible.map((p, idx) => {
                   const isProblematic = p.issue_count > 0;
                   const hasStages = Object.keys(p.stages || {}).length > 0;
+                  // Check if this project has pending
+                  const projectPending = Object.values(p.stages || {}).some(s => s.execution_actual_pending || s.execution_actual_pending_2);
+
                   return (
-                    <tr key={p.id} className={`hover:bg-gray-50/50 transition-colors ${isProblematic ? 'border-l-2 border-l-red-400' : ''}`}>
+                    <tr key={p.id} className={`hover:bg-gray-50/50 transition-colors ${isProblematic ? 'border-l-2 border-l-red-400' : ''} ${projectPending && canApprove ? 'border-l-2 border-l-amber-400' : ''}`}>
                       <td className="border border-gray-100 text-center text-xs text-gray-400 px-2 py-2">{idx + 1}</td>
 
                       <td className="border border-gray-100 px-3 py-2">
@@ -868,7 +838,13 @@ export default function KanbanPage() {
                             </button>
                           )}
                           {isProblematic && <span className="text-[10px] text-red-500 font-semibold">⚠ {p.issue_count} пр.</span>}
-                          {!hasStages && isAdmin && <span className="text-[9px] text-gray-400 italic">нет этапов — откройте объект</span>}
+                          {projectPending && canApprove && (
+                            <button onClick={() => nav(`/projects/${p.id}?tab=2`)}
+                              className="text-[10px] text-amber-600 font-semibold hover:underline">
+                              🕐 ожидают
+                            </button>
+                          )}
+                          {!hasStages && isAdmin && <span className="text-[9px] text-gray-400 italic">нет этапов</span>}
                         </div>
                       </td>
 
@@ -889,8 +865,8 @@ export default function KanbanPage() {
                           const groupBorderStyle = col.groupEnd ? { borderRight: '2px solid #d1d5db' } : {};
                           const stage = p.stages[col.stageNum];
                           const cellProps = {
-                            stage, isAdmin: cellAdmin, onUpdate: handleUpdate, groupBorderStyle,
-                            projectId: p.id, stageNum: col.stageNum,
+                            stage, isAdmin: cellAdmin, onUpdate: handleUpdate, onReload: load, canApprove,
+                            groupBorderStyle, projectId: p.id, stageNum: col.stageNum,
                             date1Field: col.date1Field, date2Field: col.date2Field,
                           };
                           if (col.dual) return <DualStatusCell key={col.key} {...cellProps} />;
@@ -900,10 +876,18 @@ export default function KanbanPage() {
                       })()}
 
                       <td className="border border-gray-100 px-2 py-2">
-                        {p.issue_count > 0 ? (
+                        {p.issues_preview?.length > 0 ? (
                           <button onClick={() => nav(`/projects/${p.id}#issues`)}
-                            className="text-[11px] text-red-600 hover:underline text-left leading-snug">
-                            ⚠ {p.issue_count} {p.issue_count === 1 ? 'примечание' : 'примечания'}
+                            className="text-left w-full space-y-1">
+                            {p.issues_preview.map((iss, i) => (
+                              <div key={i} className="flex items-start gap-1">
+                                <span className="text-red-400 text-[9px] leading-tight flex-shrink-0 mt-0.5">▸</span>
+                                <span className="text-[10px] text-gray-600 leading-snug line-clamp-2">{iss}</span>
+                              </div>
+                            ))}
+                            {parseInt(p.issue_count) > 3 && (
+                              <div className="text-[9px] text-gray-400">+{parseInt(p.issue_count) - 3} ещё</div>
+                            )}
                           </button>
                         ) : (
                           <span className="text-[11px] text-gray-300">—</span>
@@ -918,7 +902,7 @@ export default function KanbanPage() {
         </div>
       )}
 
-      {/* Type assignment */}
+      {/* Type assignment modal */}
       {assigningId && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setAssigningId(null)}>
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-5" onClick={e => e.stopPropagation()}>
@@ -938,7 +922,6 @@ export default function KanbanPage() {
                   {t.name}
                 </button>
               ))}
-              {types.length === 0 && <p className="text-sm text-gray-400 text-center py-4">Сначала создайте типы объектов</p>}
             </div>
           </div>
         </div>
