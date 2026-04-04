@@ -51,7 +51,7 @@ const KANBAN_COLS_ADMIN = [
   { key: 'afk',    label: 'АФК / пред.АГР',         group: 'Стадия Проект',        stageNum: '15', dualSimple: true },
   { key: 'agr',    label: 'АГР',                    group: 'Стадия Проект',        stageNum: '18' },
   { key: 'mge_in', label: 'Загрузка МГЭ',           group: 'Стадия Проект',        stageNum: '22' },
-  { key: 'mge_out',label: 'МГЭ заключение', labelLines: ['МГЭ', 'заключение'], group: 'Стадия Проект', stageNum: '23' },
+  { key: 'mge_out',label: 'МГЭ заключение', labelLines: ['МГЭ', 'заключение'], group: 'Стадия Проект', stageNum: '23', groupEnd: true },
 ];
 
 const KANBAN_COLS_RESIDENTIAL = [
@@ -67,7 +67,7 @@ const KANBAN_COLS_RESIDENTIAL = [
   { key: 'agr',    label: 'АГР',                    group: 'Стадия Проект',        stageNum: '18' },
   { key: 'mge_in', label: 'Загрузка МГЭ',           group: 'Стадия Проект',        stageNum: '22' },
   { key: 'mge_out',label: 'МГЭ заключение', labelLines: ['МГЭ', 'заключение'], group: 'Стадия Проект', stageNum: '23' },
-  { key: 'rd_zero',label: 'Выдача РД нул. цикла',   group: 'Стадия Проект',        stageNum: 'rd_zero' },
+  { key: 'rd_zero',label: 'Выдача РД нул. цикла',   group: 'Стадия Проект',        stageNum: 'rd_zero', groupEnd: true },
 ];
 
 const GROUP_COLORS = {
@@ -119,31 +119,43 @@ function PendingChip({ pendingDate, pendingByName, stageId, slot, canApprove, on
     } finally { setLoading(false); }
   };
 
+  const shortName = pendingByName
+    ? pendingByName.split(' ').filter(Boolean).slice(0, 2).join(' ')
+    : 'ГИП';
+
   return (
-    <div className="pending-chip mt-1.5 w-full bg-amber-50 border border-amber-200 rounded-lg p-1.5 flex flex-col items-center gap-1"
-      title={`Предложено: ${fmtDate(pendingDate)}${pendingByName ? ` — ${pendingByName}` : ''}`}>
-      {/* Icon + date centered */}
-      <div className="flex items-center justify-center gap-1">
-        <span className="text-amber-400 text-[10px] leading-none">🕐</span>
-        <span className="text-[10px] font-bold text-amber-700 leading-none tracking-tight">{fmtDate(pendingDate)}</span>
+    <div
+      className="pending-chip mt-1.5 w-full bg-amber-50 border border-amber-300 rounded-lg p-1.5 flex flex-col items-center gap-1 shadow-sm"
+      title={`Предложено: ${fmtDate(pendingDate)} — ${pendingByName || 'ГИП'}. Нажмите ✓ чтобы утвердить`}
+      onClick={e => e.stopPropagation()}
+    >
+      {/* Иконка + дата — центрированы */}
+      <div className="flex items-center justify-center gap-1 w-full">
+        <span className="text-amber-500 leading-none flex-shrink-0">🕐</span>
+        <span className="text-[10px] font-bold text-amber-800 leading-none whitespace-nowrap">{fmtDate(pendingDate)}</span>
       </div>
-      {/* Author name — truncated */}
-      {pendingByName && (
-        <div className="w-full text-center text-[8px] text-gray-400 leading-none truncate px-0.5">
-          {pendingByName.split(' ').slice(0, 2).join(' ')}
-        </div>
-      )}
-      {canApprove && (
+      {/* Автор */}
+      <div className="text-[8px] text-gray-500 leading-none text-center w-full truncate px-0.5">{shortName}</div>
+      {/* Кнопки — только для РП */}
+      {canApprove ? (
         <div className="flex gap-1 w-full mt-0.5">
-          <button disabled={loading} onClick={e => handle('approve', e)}
-            className="flex-1 text-[9px] font-bold bg-green-500 text-white rounded-md py-1 hover:bg-green-600 disabled:opacity-50 transition-all leading-none">
+          <button
+            disabled={loading}
+            onClick={e => handle('approve', e)}
+            className="flex-1 text-[9px] font-bold bg-green-500 text-white rounded-md py-1 hover:bg-green-600 disabled:opacity-50 transition-all leading-none"
+            title="Утвердить дату">
             ✓
           </button>
-          <button disabled={loading} onClick={e => handle('reject', e)}
-            className="flex-1 text-[9px] font-bold bg-white border border-red-300 text-red-500 rounded-md py-1 hover:bg-red-50 disabled:opacity-50 transition-all leading-none">
+          <button
+            disabled={loading}
+            onClick={e => handle('reject', e)}
+            className="flex-1 text-[9px] font-bold bg-white border border-red-300 text-red-500 rounded-md py-1 hover:bg-red-50 disabled:opacity-50 transition-all leading-none"
+            title="Отклонить дату">
             ✕
           </button>
         </div>
+      ) : (
+        <div className="text-[8px] text-amber-600 text-center leading-tight w-full">ожидает РП</div>
       )}
     </div>
   );
@@ -587,8 +599,19 @@ export default function KanbanPage() {
     setDashFilter(null);
   };
 
-  // Count total pending across all visible rows
-  const totalPending = rows.reduce((acc, p) => {
+  // Считаем pending только в рамках текущего типа (для отображения на бейдже)
+  const totalPending = rows.filter(p =>
+    !filterType || String(p.project_type_id) === filterType
+  ).reduce((acc, p) => {
+    Object.values(p.stages || {}).forEach(s => {
+      if (s.execution_actual_pending) acc++;
+      if (s.execution_actual_pending_2) acc++;
+    });
+    return acc;
+  }, 0);
+
+  // Глобальный счётчик по всем типам (для активного фильтра)
+  const totalPendingAll = rows.reduce((acc, p) => {
     Object.values(p.stages || {}).forEach(s => {
       if (s.execution_actual_pending) acc++;
       if (s.execution_actual_pending_2) acc++;
@@ -599,10 +622,11 @@ export default function KanbanPage() {
   let visible = sortProjects(
     rows.filter(p => {
       if (dashFilter) return dashFilter.ids.includes(p.id);
-      // Pending-only filter: show only projects with at least one pending stage
+      // Pending-only filter: показываем ВСЕ проекты с ожиданием, независимо от типа
       if (showPendingOnly) {
-        const hasPending = Object.values(p.stages || {}).some(s => s.execution_actual_pending || s.execution_actual_pending_2);
-        if (!hasPending) return false;
+        return Object.values(p.stages || {}).some(
+          s => s.execution_actual_pending || s.execution_actual_pending_2
+        );
       }
       if (showProblematic && p.issue_count === 0) return false;
       if (filterType && String(p.project_type_id) !== filterType) return false;
@@ -676,16 +700,16 @@ export default function KanbanPage() {
           <div className="flex items-center gap-3 mt-0.5">
             <p className="text-sm text-gray-400">{visible.length} объект(ов)</p>
             {/* Pending badge — кликабельный фильтр для PM/admin */}
-            {canApprove && totalPending > 0 && (
+            {canApprove && totalPendingAll > 0 && (
               <button
                 onClick={() => setShowPendingOnly(p => !p)}
-                className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-xl border transition-all ${
+                className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all ${
                   showPendingOnly
                     ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
-                    : 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200'
+                    : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
                 }`}>
-                🕐 {totalPending} ожидают утверждения
-                {showPendingOnly && <span className="ml-1 text-[10px] opacity-80">× сбросить</span>}
+                🕐 {totalPendingAll} на утверждении
+                {showPendingOnly && <span className="ml-1.5 text-[10px] opacity-80">× сбросить</span>}
               </button>
             )}
           </div>
@@ -697,7 +721,9 @@ export default function KanbanPage() {
           )}
           {showPendingOnly && !dashFilter && (
             <div className="flex items-center gap-2 mt-1.5">
-              <span className="text-xs font-semibold text-white bg-amber-500 px-2.5 py-1 rounded-full">🕐 Только с ожиданием</span>
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-amber-500 px-2.5 py-1 rounded-full">
+                🕐 Ожидают утверждения — все типы
+              </span>
               <button onClick={() => setShowPendingOnly(false)} className="text-xs text-gray-400 hover:text-gray-700 transition-colors">× сбросить</button>
             </div>
           )}
@@ -750,10 +776,10 @@ export default function KanbanPage() {
             <span>{s.label}</span>
           </div>
         ))}
-        {canApprove && (
-          <div className="flex items-center gap-1.5 text-xs text-amber-600">
+        {canApprove && totalPendingAll > 0 && (
+          <div className="flex items-center gap-1.5 text-xs text-amber-600 font-medium ml-2 pl-2 border-l border-gray-200">
             <span>🕐</span>
-            <span>Ожидает утверждения РП</span>
+            <span>Нажмите на дату в ячейке для утверждения</span>
           </div>
         )}
       </div>
@@ -774,20 +800,20 @@ export default function KanbanPage() {
               <thead className="sticky top-0 z-10">
                 <tr>
                   <th className={`${thFixedCls} w-8`} rowSpan={2}>№</th>
-                  <th className={`${thFixedCls} text-left`} style={{ width: '16%' }} rowSpan={2}>Объект</th>
-                  <th className={`${thFixedCls}`} style={{ width: '7%' }} rowSpan={2}>Договор</th>
+                  <th className={`${thFixedCls} text-left`} style={{ width: '16%', borderRight: '1.5px solid #d1d5db' }} rowSpan={2}>Объект</th>
+                  <th className={`${thFixedCls}`} style={{ width: '7%', borderRight: '1.5px solid #d1d5db' }} rowSpan={2}>Договор</th>
                   {groupedCols.map(({ group, cols }, gi) => (
                     <th key={group} className={`${thFixedCls} text-center font-bold`} colSpan={cols.length}
-                      style={{ borderRight: gi < groupedCols.length - 1 ? '2px solid #d1d5db' : undefined }}>
+                      style={{ borderRight: gi < groupedCols.length - 1 ? '1.5px solid #d1d5db' : undefined }}>
                       <span className={`px-2 py-0.5 rounded ${GROUP_COLORS[group] || ''}`}>{group}</span>
                     </th>
                   ))}
-                  <th className={`${thFixedCls}`} style={{ width: '11%' }} rowSpan={2}>Примечание</th>
+                  <th className={`${thFixedCls}`} style={{ width: '11%', borderLeft: '1.5px solid #d1d5db' }} rowSpan={2}>Примечание</th>
                 </tr>
                 <tr>
                   {KANBAN_COLS.map(col => (
                     <th key={col.key} className={thCls}
-                      style={{ maxWidth: 56, borderRight: col.groupEnd ? '2px solid #d1d5db' : undefined }}>
+                      style={{ maxWidth: 56, borderRight: col.groupEnd ? '1.5px solid #d1d5db' : undefined }}>
                       {col.labelLines ? (
                         <div className="text-[10px] leading-tight text-center">
                           {col.labelLines.map((line, i) => <div key={i}>{line}</div>)}
@@ -813,7 +839,7 @@ export default function KanbanPage() {
                     <tr key={p.id} className={`hover:bg-gray-50/50 transition-colors ${isProblematic ? 'border-l-2 border-l-red-400' : ''} ${projectPending && canApprove ? 'border-l-2 border-l-amber-400' : ''}`}>
                       <td className="border border-gray-100 text-center text-xs text-gray-400 px-2 py-2">{idx + 1}</td>
 
-                      <td className="border border-gray-100 px-3 py-2">
+                      <td className="border border-gray-100 px-3 py-2" style={{ borderRight: '1.5px solid #d1d5db' }}>
                         <button onClick={() => nav(`/projects/${p.id}`)}
                           className="text-xs font-semibold text-gray-800 hover:text-[#C0392B] text-left leading-snug transition-colors block w-full break-words">
                           {p.name}
@@ -848,7 +874,7 @@ export default function KanbanPage() {
                         </div>
                       </td>
 
-                      <td className="border border-gray-100 px-2 py-2 text-center">
+                      <td className="border border-gray-100 px-2 py-2 text-center" style={{ borderRight: '1.5px solid #d1d5db' }}>
                         <span className="text-[11px] text-gray-600">{p.contract_pir || '—'}</span>
                       </td>
 
@@ -856,13 +882,13 @@ export default function KanbanPage() {
                         if (!hasStages) {
                           return KANBAN_COLS.map(col => (
                             <td key={col.key} className="border border-gray-100 p-0 bg-gray-50/50"
-                              style={col.groupEnd ? { borderRight: '2px solid #d1d5db' } : {}}>
+                              style={col.groupEnd ? { borderRight: '1.5px solid #d1d5db' } : {}}>
                               <div className="text-gray-200 text-center text-[8px] py-2">—</div>
                             </td>
                           ));
                         }
                         return KANBAN_COLS.map(col => {
-                          const groupBorderStyle = col.groupEnd ? { borderRight: '2px solid #d1d5db' } : {};
+                          const groupBorderStyle = col.groupEnd ? { borderRight: '1.5px solid #d1d5db' } : {};
                           const stage = p.stages[col.stageNum];
                           const cellProps = {
                             stage, isAdmin: cellAdmin, onUpdate: handleUpdate, onReload: load, canApprove,
@@ -875,7 +901,7 @@ export default function KanbanPage() {
                         });
                       })()}
 
-                      <td className="border border-gray-100 px-2 py-2">
+                      <td className="border border-gray-100 px-2 py-2" style={{ borderLeft: '1.5px solid #d1d5db' }}>
                         {p.issues_preview?.length > 0 ? (
                           <button onClick={() => nav(`/projects/${p.id}#issues`)}
                             className="text-left w-full space-y-1">
