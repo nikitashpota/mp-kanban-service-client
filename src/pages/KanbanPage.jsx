@@ -128,13 +128,15 @@ function PendingChip({ pendingDate, pendingByName, stageId, slot, canApprove, on
         popRef.current && !popRef.current.contains(e.target)
       ) setOpen(false);
     };
-    // Обновляем позицию при любом скролле (канбан, окно)
     const onScroll = () => updatePos();
+    const onKey = e => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('mousedown', onMouseDown);
-    document.addEventListener('scroll', onScroll, true); // capture — ловим любой скролл
+    document.addEventListener('scroll', onScroll, true);
+    document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('mousedown', onMouseDown);
       document.removeEventListener('scroll', onScroll, true);
+      document.removeEventListener('keydown', onKey);
     };
   }, [open]);
 
@@ -269,9 +271,14 @@ function useDualCell(stage, onUpdate, projectId, stageNum, date1Field = 'executi
   const ref = useRef();
 
   useEffect(() => {
-    const handler = e => { if (ref.current && !ref.current.contains(e.target)) { setOpen1(false); setOpen2(false); }};
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    const onMouseDown = e => { if (ref.current && !ref.current.contains(e.target)) { setOpen1(false); setOpen2(false); }};
+    const onKey = e => { if (e.key === 'Escape') { setOpen1(false); setOpen2(false); setDateEdit(null); } };
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('keydown', onKey);
+    };
   }, []);
 
   const safeStage = stage || {};
@@ -428,9 +435,14 @@ function StatusCell({ stage, projectId, stageNum, isAdmin, onUpdate, onReload, c
   const ref = useRef();
 
   useEffect(() => {
-    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    const onMouseDown = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onKey = e => { if (e.key === 'Escape') { setOpen(false); setDateEdit(false); } };
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('keydown', onKey);
+    };
   }, []);
 
   if (!stage && !isAdmin) {

@@ -684,14 +684,10 @@ export default function ProjectDetailPage() {
                         const rd = parseInt(s.readiness) || 0;
                         const statusKey = isSlot2 ? s.parent_kanban_status_2 : s.kanban_status;
                         const statusColor = KANBAN_STATUS_COLORS[statusKey];
-                        const dateCellStyle = statusColor
-                          ? { background: statusColor.bg, borderColor: statusColor.border }
-                          : {};
                         const slot = isSlot2 ? 2 : 1;
 
                         if (isSurveyRow) {
                           const sc = KANBAN_STATUS_COLORS[s.kanban_status];
-                          const scStyle = sc ? { background: sc.bg, borderColor: sc.border } : {};
 
                           rows.push(
                             <tr key={`${s.id}-main`} className="hover:bg-gray-50/30">
@@ -718,7 +714,7 @@ export default function ProjectDetailPage() {
                               </td>
                             </tr>,
 
-                            <tr key={`${s.id}-e1`} className="bg-gray-50/40 hover:bg-gray-50">
+                            <tr key={`${s.id}-e1`} className="bg-gray-50/40 hover:brightness-95" style={sc ? { background: sc.bg } : {}}>
                               <td className={`${tdCls} text-center text-gray-300 text-[10px]`}></td>
                               <td className={`${tdCls} text-xs text-gray-400`}></td>
                               <td className={`${tdCls} text-gray-500 text-xs`}>
@@ -731,7 +727,7 @@ export default function ProjectDetailPage() {
                                 </div>
                               </td>
                               <td className={`${tdCls} text-center`} style={{ minWidth: 90 }}><span className="text-gray-200 text-xs">—</span></td>
-                              <td className={`${tdCls} text-center`} style={{ minWidth: 90, ...scStyle }}>
+                              <td className={`${tdCls} text-center`} style={{ minWidth: 90 }}>
                                 <div className="flex flex-col gap-0.5">
                                   {canEdit ? <><EC value={s.execution_planned} type="date" onSave={v => handlePatchStage(s.id, 'execution_planned', v)} placeholder="план" /><EC value={s.execution_actual} type="date" onSave={v => handlePatchStage(s.id, 'execution_actual', v)} placeholder="факт" /></>
                                     : <><span className="text-xs text-gray-500">{fmtDate(s.execution_planned) || '—'}</span>{s.execution_actual && <span className="text-xs font-semibold px-1 rounded" style={sc ? { color: sc.text } : {}}>{fmtDate(s.execution_actual)}</span>}</>}
@@ -751,7 +747,7 @@ export default function ProjectDetailPage() {
                               <td className={tdCls}></td>
                             </tr>,
 
-                            <tr key={`${s.id}-e2`} className="bg-gray-50/40 hover:bg-gray-50">
+                            <tr key={`${s.id}-e2`} className="bg-gray-50/40 hover:brightness-95" style={sc ? { background: sc.bg } : {}}>
                               <td className={`${tdCls} text-center text-gray-300 text-[10px]`}></td>
                               <td className={`${tdCls} text-xs text-gray-400`}></td>
                               <td className={`${tdCls} text-gray-500 text-xs`}>
@@ -759,7 +755,7 @@ export default function ProjectDetailPage() {
                               </td>
                               <td className={`${tdCls} text-center`}><span className="text-gray-300 text-xs">—</span></td>
                               <td className={`${tdCls} text-center`} style={{ minWidth: 90 }}><span className="text-gray-200 text-xs">—</span></td>
-                              <td className={`${tdCls} text-center`} style={{ minWidth: 90, ...scStyle }}>
+                              <td className={`${tdCls} text-center`} style={{ minWidth: 90 }}>
                                 <div className="flex flex-col gap-0.5">
                                   {canEdit ? <><EC value={s.execution_planned_2} type="date" onSave={v => handlePatchStage(s.id, 'execution_planned_2', v)} placeholder="план" /><EC value={s.execution_actual_2} type="date" onSave={v => handlePatchStage(s.id, 'execution_actual_2', v)} placeholder="факт" /></>
                                     : <><span className="text-xs text-gray-500">{fmtDate(s.execution_planned_2) || '—'}</span>{s.execution_actual_2 && <span className="text-xs font-semibold px-1 rounded" style={sc ? { color: sc.text } : {}}>{fmtDate(s.execution_actual_2)}</span>}</>}
@@ -782,8 +778,11 @@ export default function ProjectDetailPage() {
                           return;
                         }
 
+                        // Фон статуса — на весь ряд
+                        const rowStyle = statusColor ? { background: statusColor.bg } : {};
+
                         rows.push(
-                          <tr key={s.id} className={`transition-colors ${!s.stage_num && !s.stage_name ? 'bg-gray-50/60 hover:bg-gray-50' : 'hover:bg-gray-50/30'} ${isSlot2 ? 'bg-blue-50/20' : ''}`}>
+                          <tr key={s.id} className={`transition-colors ${!statusColor ? (!s.stage_num && !s.stage_name ? 'bg-gray-50/60 hover:bg-gray-50' : 'hover:bg-gray-50/30') : 'hover:brightness-95'} ${isSlot2 && !statusColor ? 'bg-blue-50/20' : ''}`} style={rowStyle}>
                             <td className={`${tdCls} text-center text-gray-400 font-mono text-[11px]`}>{displayNum}</td>
                             <td className={`${tdCls} font-semibold text-gray-800 text-xs`}>
                               {canEdit ? <EC value={s.stage_name} onSave={v => handlePatchStage(s.id, 'stage_name', v)} placeholder="—" /> : (s.stage_name || '')}
@@ -807,14 +806,14 @@ export default function ProjectDetailPage() {
                                     {!canEdit && !rd && <span className="text-gray-300 text-xs">—</span>}
                                   </div>
                                 </td>
-                                <td className={`${tdCls} text-center`} style={{ minWidth: 90, ...dateCellStyle }}>
+                                <td className={`${tdCls} text-center`} style={{ minWidth: 90 }}>
                                   <div className="flex flex-col gap-0.5">
                                     {canEdit && !isSlot2
                                       ? <><EC value={s.deadline_contract} type="date" onSave={v => handlePatchStage(s.id, 'deadline_contract', v)} placeholder="дог." /><EC value={s.deadline_directive} type="date" onSave={v => handlePatchStage(s.id, 'deadline_directive', v)} placeholder="дир." /></>
                                       : <><span className="text-xs text-gray-600">{fmtDate(s.deadline_contract) || (isSlot2 ? '' : '—')}</span><span className="text-xs text-gray-400">{fmtDate(s.deadline_directive)}</span></>}
                                   </div>
                                 </td>
-                                <td className={`${tdCls} text-center`} style={{ minWidth: 130, ...dateCellStyle }}>
+                                <td className={`${tdCls} text-center`} style={{ minWidth: 130 }}>
                                   <div className="flex flex-col gap-0.5">
                                     {canEdit
                                       ? <><EC value={planDate} type="date" onSave={v => handlePatchStage(s.id, 'execution_planned', v)} placeholder="план" /><EC value={actualDate} type="date" onSave={v => handlePatchStage(s.id, 'execution_actual', v)} placeholder="факт" /></>
