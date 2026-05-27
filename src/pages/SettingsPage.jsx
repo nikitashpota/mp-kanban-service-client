@@ -72,7 +72,7 @@ function TypesTab() {
           </Field>
           <Field label="Структура канбана">
             <select className={inputCls} value={form.kanban_type} onChange={e => setForm(p => ({ ...p, kanban_type: e.target.value }))}>
-              <option value="administrative">Административный (по умолчанию)</option>
+              <option value="administrative">Общественный (по умолчанию)</option>
               <option value="residential">Жильё (реновация)</option>
             </select>
           </Field>
@@ -106,7 +106,7 @@ function TypesTab() {
                   <td className="px-4 py-3">
                     {t.kanban_type === 'residential'
                       ? <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">Жильё</span>
-                      : <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200">Административный</span>}
+                      : <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200">Общественный</span>}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">

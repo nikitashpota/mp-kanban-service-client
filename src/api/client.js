@@ -112,8 +112,14 @@ export const getPendingAll = () =>
   api.get('/pending/count/all').then(r => r.data);
 
 // ── Analytics ─────────────────────────────────────────────────
-export const getAnalytics = (typeId) =>
-  api.get('/analytics', { params: typeId ? { type_id: typeId } : {} }).then(r => r.data);
+export const getAnalytics = (arg = {}) => {
+  // Поддерживаем и старый вызов getAnalytics(typeId) и новый getAnalytics({ kanbanType, typeId })
+  const { kanbanType, typeId } = (arg && typeof arg === 'object') ? arg : {};
+  const params = {};
+  if (kanbanType) params.kanban_type = kanbanType;
+  if (typeId && !isNaN(parseInt(typeId, 10))) params.type_id = typeId;
+  return api.get('/analytics', { params }).then(r => r.data);
+};
 
 // ── Kanban ────────────────────────────────────────────────────
 export const getKanban = () => api.get('/kanban').then(r => r.data);
