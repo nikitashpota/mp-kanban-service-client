@@ -200,9 +200,13 @@ export default function HomePage() {
 
   const fetchData = useCallback(() => {
     if (tab !== 'public') return;
+    const token = localStorage.getItem('token');
+    if (!token) { console.warn('[HomePage] fetchData: нет токена, пропускаем'); return; }
     setLoading(true);
     getAnalytics({ kanbanType: 'administrative', typeId: subTypeId || null })
-      .then(setData).finally(() => setLoading(false));
+      .then(d => { console.log('[HomePage] analytics response:', d); setData(d); })
+      .catch(err => console.error('[HomePage] analytics error:', err.response?.data || err.message))
+      .finally(() => setLoading(false));
   }, [tab, subTypeId]);
 
   // Загружаем при изменении фильтра
