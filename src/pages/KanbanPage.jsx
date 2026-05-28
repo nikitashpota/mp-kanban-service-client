@@ -51,8 +51,8 @@ const KANBAN_COLS_ADMIN = [
   { key: 'shopr',  label: 'ШОПР',                   group: 'Стадия Проект',        stageNum: 'shopr' },
   { key: 'afk',    label: 'АФК / пред.АГР',         group: 'Стадия Проект',        stageNum: '15', dualSimple: true },
   { key: 'agr',    label: 'АГР',                    group: 'Стадия Проект',        stageNum: '18' },
-  { key: 'mge_in', label: 'Загрузка МГЭ',           group: 'Стадия Проект',        stageNum: '22' },
-  { key: 'mge_out',label: 'МГЭ заключение', labelLines: ['МГЭ', 'заключение'], group: 'Стадия Проект', stageNum: '23', groupEnd: true },
+  { key: 'mge_in',  label: 'Загрузка МГЭ',           group: 'Стадия Проект',        stageNum: '23' },
+  { key: 'mge_out', label: 'МГЭ заключение', labelLines: ['МГЭ', 'заключение'], group: 'Стадия Проект', stageNum: '23_exit', groupEnd: true },
 ];
 
 const KANBAN_COLS_RESIDENTIAL = [
@@ -66,8 +66,8 @@ const KANBAN_COLS_RESIDENTIAL = [
   { key: 'rso',    label: 'Договора с РСО (ТУ)',     labelLines: ['Договора', 'с РСО (ТУ)'],  group: 'Стадия Проект', stageNum: '14' },
   { key: 'afk',    label: 'АФК / пред.АГР',         group: 'Стадия Проект',        stageNum: '15', dualSimple: true },
   { key: 'agr',    label: 'АГР',                    group: 'Стадия Проект',        stageNum: '18' },
-  { key: 'mge_in', label: 'Загрузка МГЭ',           group: 'Стадия Проект',        stageNum: '22' },
-  { key: 'mge_out',label: 'МГЭ заключение', labelLines: ['МГЭ', 'заключение'], group: 'Стадия Проект', stageNum: '23' },
+  { key: 'mge_in',  label: 'Загрузка МГЭ',           group: 'Стадия Проект',        stageNum: '23' },
+  { key: 'mge_out', label: 'МГЭ заключение', labelLines: ['МГЭ', 'заключение'], group: 'Стадия Проект', stageNum: '23_exit' },
   { key: 'rd_zero',label: 'Выдача РД нул. цикла',   group: 'Стадия Проект',        stageNum: 'rd_zero', groupEnd: true },
 ];
 
@@ -381,48 +381,238 @@ function DualStatusCell({ stage, projectId, stageNum, isAdmin, onUpdate, onReloa
 }
 
 // ── DualSimpleCell ────────────────────────────────────────────
-function DualSimpleCell({ stage, projectId, stageNum, isAdmin, onUpdate, onReload, canApprove, groupBorderStyle = {}, date1Field, date2Field }) {
-  const { ref, open1, setOpen1, open2, setOpen2, dateEdit, setDateEdit, dateVal, setDateVal, st1, st2, date1, date2, Picker, DateOverlay, safeStage } = useDualCell(stage, onUpdate, projectId, stageNum, date1Field, date2Field);
+// Верхняя строка = родительская запись (slot 1)
+// Нижняя строка = отдельная запись slot-2 (stageNum + '_slot2')
+function DualSimpleCell({ stage, stageSlot2, projectId, stageNum, isAdmin, onUpdate, onReload, canApprove, groupBorderStyle = {}, date1Field, date2Field }) {
+  const [open1, setOpen1] = useState(false);
+  const [open2, setOpen2] = useState(false);
+  const [dateEdit, setDateEdit] = useState(null); // 1 | 2 | null
+  const [dateVal, setDateVal] = useState('');
+  const ref = useRef();
 
-  const SimpleRow = ({ which, st, date, open, setOpen, pendingDate, pendingByName, slot }) => (
+  useEffect(() => {
+    const onMD = e => { if (ref.current && !ref.current.contains(e.target)) { setOpen1(false); setOpen2(false); setDateEdit(null); } };
+    const onKey = e => { if (e.key === 'Escape') { setOpen1(false); setOpen2(false); setDateEdit(null); } };
+    document.addEventListener('mousedown', onMD);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onMD); document.removeEventListener('keydown', onKey); };
+  }, []);
+
+  const st1 = STATUS_MAP[stage?.kanban_status];
+  const st2 = STATUS_MAP[stageSlot2?.kanban_status];
+  const date1 = stage?.[date1Field || 'execution_actual'];
+  const date2 = stageSlot2?.[date2Field || 'execution_actual'];
+
+  const handleStatus1 = async (key) => {
+    setOpen1(false);
+    await onUpdate(stage?.id || null, { kanban_status: key }, projectId, stageNum);
+  };
+  const handleStatus2 = async (key) => {
+    setOpen2(false);
+    await onUpdate(stageSlot2?.id || null, { kanban_status: key }, projectId, `${stageNum}_slot2`);
+  };
+  const handleDateSave = async () => {
+    setDateEdit(null);
+    if (dateEdit === 1) {
+      await onUpdate(stage?.id || null, { [date1Field || 'execution_actual']: dateVal }, projectId, stageNum);
+    } else {
+      await onUpdate(stageSlot2?.id || null, { [date2Field || 'execution_actual']: dateVal }, projectId, `${stageNum}_slot2`);
+    }
+  };
+
+  const SimpleRow = ({ which, st, date, setOpen, pendingDate, pendingByName, stageId }) => (
     <div
       className={`w-full flex-1 flex flex-col items-center justify-center border-b border-gray-100 last:border-0 ${st ? st.bg : ''} ${isAdmin ? 'cursor-pointer hover:brightness-95' : ''} px-1`}
       style={{ gap: '0.4rem', paddingTop: '5px', paddingBottom: '5px' }}
-      onClick={() => isAdmin && setOpen(o => !o)}>
+      onClick={() => isAdmin && setOpen(o => !o)}
+    >
       {st ? <StatusIcon type={st.key} size={17} /> : <span className="text-gray-200 text-base">·</span>}
       <span
         className={`text-[9px] font-semibold leading-none transition-colors ${date ? (st ? st.text : 'text-gray-400') : 'text-gray-300'} ${isAdmin ? 'hover:text-blue-500 hover:underline cursor-pointer' : ''}`}
-        onClick={e => { if (isAdmin) { e.stopPropagation(); setDateEdit(which); setDateVal((date || '').slice(0, 10)); }}}>
+        onClick={e => { if (isAdmin) { e.stopPropagation(); setOpen(false); setDateEdit(which); setDateVal((date || '').slice(0, 10)); }}}
+      >
         {date ? fmtDate(date) : (isAdmin ? 'дата' : '—')}
       </span>
       {pendingDate && (
-        <PendingChip pendingDate={pendingDate} pendingByName={pendingByName} stageId={stage?.id} slot={slot} canApprove={canApprove} onDone={onReload} />
+        <PendingChip pendingDate={pendingDate} pendingByName={pendingByName}
+          stageId={stageId} slot={1} canApprove={canApprove} onDone={onReload} />
       )}
+    </div>
+  );
+
+  const StatusPicker = ({ currentKey, onPick, bottom = false }) => (
+    <div className={`absolute ${bottom ? 'bottom-0' : 'top-0'} left-full z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-52 ml-1 text-left whitespace-nowrap`}>
+      {STATUSES.map(s => (
+        <button key={s.key} onClick={() => onPick(s.key)}
+          className={`w-full text-left flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 ${currentKey === s.key ? 'font-semibold' : ''}`}>
+          <StatusIcon type={s.key} size={14} /><span className={s.text}>{s.label}</span>
+          {currentKey === s.key && <span className="ml-auto text-gray-300">✓</span>}
+        </button>
+      ))}
+      <div className="border-t border-gray-100 mt-1 pt-1">
+        <button onClick={() => onPick(null)} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50">✕ Очистить</button>
+      </div>
     </div>
   );
 
   return (
     <td className="border border-gray-100 p-0 relative" style={{ height: '1px', padding: 0, ...groupBorderStyle }} ref={ref}>
       <div style={{ height: '100%', minHeight: '100%' }} className="flex flex-col dual-cell-wrapper">
-        <SimpleRow which={1} st={st1} date={date1} open={open1} setOpen={setOpen1} pendingDate={stage?.execution_actual_pending} pendingByName={stage?.pending_by_name} slot={1} />
-        <SimpleRow which={2} st={st2} date={date2} open={open2} setOpen={setOpen2} pendingDate={stage?.execution_actual_pending_2} pendingByName={stage?.pending_by_name} slot={2} />
+        <SimpleRow which={1} st={st1} date={date1} setOpen={setOpen1} pendingDate={stage?.execution_actual_pending} pendingByName={stage?.pending_by_name} stageId={stage?.id} />
+        <SimpleRow which={2} st={st2} date={date2} setOpen={setOpen2} pendingDate={stageSlot2?.execution_actual_pending} pendingByName={stageSlot2?.pending_by_name} stageId={stageSlot2?.id} />
       </div>
-      {open1 && <Picker which={1} currentKey={safeStage.kanban_status} />}
-      {open2 && (
-        <div className="absolute bottom-0 left-full z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-52 ml-1 text-left whitespace-nowrap">
-          {STATUSES.map(s => (
-            <button key={s.key} onClick={async () => { setOpen2(false); await onUpdate(stage?.id, { kanban_status_2: s.key }, projectId, stageNum); }}
-              className={`w-full text-left flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 ${safeStage.kanban_status_2 === s.key ? 'font-semibold' : ''}`}>
-              <StatusIcon type={s.key} size={14} /><span className={s.text}>{s.label}</span>
-              {safeStage.kanban_status_2 === s.key && <span className="ml-auto text-gray-300">✓</span>}
-            </button>
-          ))}
-          <div className="border-t border-gray-100 mt-1 pt-1">
-            <button onClick={async () => { setOpen2(false); await onUpdate(stage?.id, { kanban_status_2: null }, projectId, stageNum); }} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50">✕ Очистить</button>
+      {open1 && <StatusPicker currentKey={stage?.kanban_status} onPick={handleStatus1} bottom={false} />}
+      {open2 && <StatusPicker currentKey={stageSlot2?.kanban_status} onPick={handleStatus2} bottom={true} />}
+      {dateEdit && (
+        <div className="absolute top-0 left-full z-30 bg-white border border-[#C0392B] rounded-lg shadow-lg p-2 w-36 ml-1">
+          <input type="date" autoFocus className="w-full text-xs border border-gray-200 rounded px-2 py-1 mb-2 focus:outline-none"
+            value={dateVal} onChange={e => setDateVal(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleDateSave(); if (e.key === 'Escape') setDateEdit(null); }} />
+          <div className="flex gap-1">
+            <button onClick={handleDateSave} className="flex-1 text-xs bg-[#C0392B] text-white rounded px-1.5 py-1">OK</button>
+            <button onClick={() => setDateEdit(null)} className="flex-1 text-xs bg-gray-100 text-gray-600 rounded px-1.5 py-1">✕</button>
           </div>
         </div>
       )}
-      {dateEdit && <DateOverlay />}
+    </td>
+  );
+}
+
+// ── MgeDualCell ───────────────────────────────────────────────
+// Верхняя строка: «вход» (stageNum='22'/'23') — загрузка
+// Нижняя строка: «выход» (stageNum='22_exit'/'23_exit') — результат
+function MgeDualCell({ stageIn, stageOut, projectId, stageNumIn, stageNumOut, isAdmin, onUpdate, onReload, canApprove, groupBorderStyle = {} }) {
+  const [openStatus, setOpenStatus] = useState(null); // 'in' | 'out' | null
+  const [dateEdit,   setDateEdit]   = useState(null); // 'in' | 'out' | null
+  const [dateVal,    setDateVal]    = useState('');
+  const ref = useRef();
+
+  useEffect(() => {
+    const onMouseDown = e => { if (ref.current && !ref.current.contains(e.target)) { setOpenStatus(null); setDateEdit(null); } };
+    const onKey = e => { if (e.key === 'Escape') { setOpenStatus(null); setDateEdit(null); } };
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onMouseDown); document.removeEventListener('keydown', onKey); };
+  }, []);
+
+  const stIn  = STATUS_MAP[stageIn?.kanban_status];
+  const stOut = STATUS_MAP[stageOut?.kanban_status];
+
+  const handleStatusPick = async (which, statusKey) => {
+    const stage   = which === 'in' ? stageIn   : stageOut;
+    const stageNum = which === 'in' ? stageNumIn : stageNumOut;
+    setOpenStatus(null);
+    await onUpdate(stage?.id || null, { kanban_status: statusKey }, projectId, stageNum);
+  };
+
+  const handleDateSave = async (which) => {
+    const stage    = which === 'in' ? stageIn   : stageOut;
+    const stageNum = which === 'in' ? stageNumIn : stageNumOut;
+    setDateEdit(null);
+    await onUpdate(stage?.id || null, { execution_actual: dateVal }, projectId, stageNum);
+  };
+
+  const Row = ({ which, st, stage, label }) => (
+    <div
+      className={`w-full flex-1 flex flex-col items-center justify-center border-b border-gray-100 last:border-0 ${st ? st.bg : ''} ${isAdmin ? 'cursor-pointer hover:brightness-95' : ''} px-1`}
+      style={{ gap: '0.4rem', paddingTop: '5px', paddingBottom: '5px' }}
+      onClick={() => isAdmin && setOpenStatus(o => o === which ? null : which)}
+    >
+      <span className="text-[9px] text-gray-400 font-bold leading-none">{label}</span>
+      {st
+        ? <StatusIcon type={st.key} size={16} />
+        : <span className="text-gray-200 text-base">·</span>
+      }
+      <span
+        className={`text-[9px] font-semibold leading-none transition-colors
+          ${stage?.execution_actual ? (st ? st.text : 'text-gray-400') : 'text-gray-300'}
+          ${isAdmin ? 'hover:text-blue-500 hover:underline cursor-pointer' : ''}`}
+        onClick={e => {
+          if (!isAdmin) return;
+          e.stopPropagation();
+          setOpenStatus(null);
+          setDateEdit(which);
+          setDateVal((stage?.execution_actual || '').slice(0, 10));
+        }}
+      >
+        {stage?.execution_actual ? fmtDate(stage.execution_actual) : (isAdmin ? 'дата' : '—')}
+      </span>
+      {stage?.execution_actual_pending && (
+        <PendingChip
+          pendingDate={stage.execution_actual_pending}
+          pendingByName={stage.pending_by_name}
+          stageId={stage.id} slot={1}
+          canApprove={canApprove} onDone={onReload}
+        />
+      )}
+    </div>
+  );
+
+  const StatusPicker = ({ which, stage, stageField = 'kanban_status' }) => (
+    <div className="absolute left-full top-0 z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-52 ml-1 text-left whitespace-nowrap">
+      {STATUSES.map(s => (
+        <button key={s.key}
+          onClick={async () => { await handleStatusPick(which, s.key); }}
+          className={`w-full text-left flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 ${stage?.[stageField] === s.key ? 'font-semibold' : ''}`}
+        >
+          <StatusIcon type={s.key} size={14} />
+          <span className={s.text}>{s.label}</span>
+          {stage?.[stageField] === s.key && <span className="ml-auto text-gray-300">✓</span>}
+        </button>
+      ))}
+      <div className="border-t border-gray-100 mt-1 pt-1">
+        <button onClick={async () => { await handleStatusPick(which, null); }}
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50">
+          ✕ Очистить
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <td className="border border-gray-100 p-0 relative" style={{ height: '1px', padding: 0, ...groupBorderStyle }} ref={ref}>
+      <div style={{ height: '100%', minHeight: '100%' }} className="flex flex-col">
+        <Row which="in"  st={stIn}  stage={stageIn}  label="вход" />
+        <Row which="out" st={stOut} stage={stageOut} label="выход" />
+      </div>
+
+      {openStatus === 'in'  && <StatusPicker which="in"  stage={stageIn} />}
+      {openStatus === 'out' && (
+        <div className="absolute left-full bottom-0 z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-52 ml-1 text-left whitespace-nowrap">
+          {STATUSES.map(s => (
+            <button key={s.key}
+              onClick={async () => { await handleStatusPick('out', s.key); }}
+              className={`w-full text-left flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 ${stageOut?.kanban_status === s.key ? 'font-semibold' : ''}`}
+            >
+              <StatusIcon type={s.key} size={14} />
+              <span className={s.text}>{s.label}</span>
+              {stageOut?.kanban_status === s.key && <span className="ml-auto text-gray-300">✓</span>}
+            </button>
+          ))}
+          <div className="border-t border-gray-100 mt-1 pt-1">
+            <button onClick={async () => { await handleStatusPick('out', null); }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50">
+              ✕ Очистить
+            </button>
+          </div>
+        </div>
+      )}
+
+      {dateEdit && (
+        <div className="absolute left-full top-0 z-30 bg-white border border-gray-200 rounded-xl shadow-lg p-3 ml-1 w-44">
+          <div className="text-[10px] text-gray-400 mb-1.5">
+            {dateEdit === 'in' ? 'Вход (загрузка)' : 'Выход (заключение)'}
+          </div>
+          <input type="date"
+            className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-blue-400"
+            value={dateVal} onChange={e => setDateVal(e.target.value)} autoFocus
+          />
+          <div className="flex gap-2 mt-2">
+            <button onClick={() => handleDateSave(dateEdit)} className="flex-1 bg-gray-900 text-white text-xs py-1.5 rounded-lg">OK</button>
+            <button onClick={() => setDateEdit(null)} className="flex-1 border border-gray-200 text-xs py-1.5 rounded-lg">✕</button>
+          </div>
+        </div>
+      )}
     </td>
   );
 }
@@ -687,8 +877,9 @@ export default function KanbanPage() {
   useEffect(() => { load(); }, []);
 
   const handleUpdate = async (stageId, data, projectId, stageNum) => {
-    const id = stageId || 'new';
-    await patchKanbanStage(id, { ...data, ...(id === 'new' ? { project_id: projectId, stage_num: stageNum } : {}) });
+    const id = stageId || 'null';
+    // Всегда передаём project_id и stage_num — сервер использует их для lookup когда id=null
+    await patchKanbanStage(id, { ...data, project_id: projectId, stage_num: stageNum });
     load();
   };
 
@@ -998,8 +1189,17 @@ export default function KanbanPage() {
                             groupBorderStyle, projectId: p.id, stageNum: col.stageNum,
                             date1Field: col.date1Field, date2Field: col.date2Field,
                           };
+                          if (col.dualMge) return <MgeDualCell key={col.key}
+                            stageIn={p.stages[col.stageNum]}
+                            stageOut={p.stages[col.exitStageNum]}
+                            projectId={p.id}
+                            stageNumIn={col.stageNum}
+                            stageNumOut={col.exitStageNum}
+                            isAdmin={cellAdmin} onUpdate={handleUpdate} onReload={load} canApprove={canApprove}
+                            groupBorderStyle={groupBorderStyle} />;
                           if (col.dual) return <DualStatusCell key={col.key} {...cellProps} />;
-                          if (col.dualSimple) return <DualSimpleCell key={col.key} {...cellProps} />;
+                          if (col.dualSimple) return <DualSimpleCell key={col.key} {...cellProps}
+                            stageSlot2={p.stages[`${col.stageNum}_slot2`]} />;
                           return <StatusCell key={col.key} {...cellProps} />;
                         });
                       })()}

@@ -4,7 +4,7 @@ import {
   getProject, uploadPhotos, deletePhoto, setPhotoType,
   addContact, updateContact, deleteContact,
   saveNetworks, savePassportHeader, patchPassportStage,
-  savePassportIssues, initPassportV2, importPassportXlsx, deleteProject, photoUrl,
+  savePassportIssues, initPassportV2, fixPassportSlots, importPassportXlsx, deleteProject, photoUrl,
   proposeDate, approveDate, rejectDate,
 } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -287,6 +287,10 @@ export default function ProjectDetailPage() {
   };
   const handleInitPassport = async () => {
     try { await initPassportV2(id); flash('Этапы созданы'); load(); }
+    catch (err) { flash(err.response?.data?.error || 'Ошибка', 'error'); }
+  };
+  const handleFixSlots = async () => {
+    try { const r = await fixPassportSlots(id); flash(`Слоты исправлены: ${r.fixed} записей`); load(); }
     catch (err) { flash(err.response?.data?.error || 'Ошибка', 'error'); }
   };
 
@@ -636,6 +640,11 @@ export default function ProjectDetailPage() {
                     Создать все этапы
                   </button>
                 )}
+                {canEdit && passportStages.length > 0 && (
+                  <button onClick={handleFixSlots} className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 border border-gray-200 shadow-sm transition-all">
+                    🔧 Исправить слоты
+                  </button>
+                )}
               </div>
             </div>
 
@@ -643,7 +652,10 @@ export default function ProjectDetailPage() {
               <div className="py-16 text-center text-sm text-gray-400">
                 <div className="text-4xl mb-3">📋</div>
                 Этапы не созданы
-                {canEdit && <div className="mt-4"><button onClick={handleInitPassport} className="px-4 py-2 text-sm font-semibold rounded-xl bg-brand-500 hover:bg-brand-600 text-white shadow-sm transition-all">Создать все этапы</button></div>}
+                {canEdit && <div className="mt-4 flex gap-2 flex-wrap">
+                  <button onClick={handleInitPassport} className="px-4 py-2 text-sm font-semibold rounded-xl bg-brand-500 hover:bg-brand-600 text-white shadow-sm transition-all">Создать все этапы</button>
+                  <button onClick={handleFixSlots} className="px-4 py-2 text-sm font-semibold rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 shadow-sm transition-all">🔧 Исправить слоты</button>
+                </div>}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -678,11 +690,12 @@ export default function ProjectDetailPage() {
                         const { isCountRow, isSurveyRow } = rowMeta[idx];
                         const isSlot2 = s.kanban_slot === 2;
                         const displayNum = s.stage_num && !NON_NUMERIC_NUMS.has(s.stage_num) ? s.stage_num : '';
-                        const planDate   = isSlot2 ? s.parent_planned_2 : s.execution_planned;
-                        const actualDate = isSlot2 ? s.parent_actual_2  : s.execution_actual;
-                        const pendDate   = isSlot2 ? s.execution_actual_pending_2 : s.execution_actual_pending;
+                        // Для slot-2 (строка «согласовано») данные хранятся в собственных полях записи
+                        const planDate   = s.execution_planned;
+                        const actualDate = s.execution_actual;
+                        const pendDate   = s.execution_actual_pending;
                         const rd = parseInt(s.readiness) || 0;
-                        const statusKey = isSlot2 ? s.parent_kanban_status_2 : s.kanban_status;
+                        const statusKey = s.kanban_status;
                         const statusColor = KANBAN_STATUS_COLORS[statusKey];
                         const slot = isSlot2 ? 2 : 1;
 
